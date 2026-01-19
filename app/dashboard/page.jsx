@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import React, { Suspense } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
@@ -35,17 +36,14 @@ function toYMD(v) {
   return `${y}-${mm}-${dd}(${week})`;
 }
 
-// 모바일용: YY-MM-DD (어떤 형태로 와도 최대한 표시)
+// 모바일용: YY-MM-DD
 function toYMDShort(v) {
   if (!v) return "";
 
   const raw = String(v);
-
-  // 1) 가장 확실: YYYY-MM-DD 추출
   const m = raw.match(/\d{4}-\d{2}-\d{2}/);
-  if (m) return m[0].slice(2); // "2026-01-18" -> "26-01-18"
+  if (m) return m[0].slice(2);
 
-  // 2) ISO/영문 등 Date 파싱 가능한 경우
   const d = new Date(raw);
   if (!isNaN(d.getTime())) {
     const yy = String(d.getFullYear()).slice(2);
@@ -54,12 +52,10 @@ function toYMDShort(v) {
     return `${yy}-${mm}-${dd}`;
   }
 
-  // 3) 최후 fallback: 뭐라도 표시
   return raw.slice(0, 10);
 }
 
-
-export default function DashboardPage() {
+function DashboardInner() {
   const [summary, setSummary] = useState([]);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -71,6 +67,7 @@ export default function DashboardPage() {
   const [region, setRegion] = useState("");
   const [storeCode, setStoreCode] = useState("");
   const [category, setCategory] = useState("");
+
   const currentStoreCode = searchParams.get("store_code") || "";
   const currentStoreName = searchParams.get("store_name") || "";
 
@@ -88,7 +85,6 @@ export default function DashboardPage() {
       font-weight:900;
     }
 
-    /* ✅ 헤더 반응형을 위해 inner로 분리 */
     .headerInner{
       display:flex;
       justify-content:space-between;
@@ -108,7 +104,6 @@ export default function DashboardPage() {
       white-space:nowrap;
     }
 
-    /* ✅ 입력하기 게이트 버튼 */
     .headerBtn{
       display:inline-flex;
       align-items:center;
@@ -136,7 +131,6 @@ export default function DashboardPage() {
       white-space:nowrap;
     }
 
-    /* ✅ PC 기본 */
     .onlyDesktop{ display:inline; }
     .onlyMobile{ display:none; }
 
@@ -181,7 +175,6 @@ export default function DashboardPage() {
     }
     .panelTitle{ font-size:18px; font-weight:900; margin-bottom:14px; }
 
-    /* Filter Box */
     .filterBox{
       background:#fff;
       border-radius:14px;
@@ -287,48 +280,42 @@ export default function DashboardPage() {
       .header{ padding:16px 18px; font-size:18px; }
       .container{ margin:22px auto; }
       .panel{ max-height:none; }
-
-      /* ✅ 태블릿 이하에서 헤더 줄바꿈 허용 */
       .logo{ white-space:normal; }
     }
 
     @media (max-width: 560px){
-    /* ✅ 모바일에서 헤더 글자/버튼도 같이 줄임 */
-    .header{ font-size:16px; }
-    .todayText{ font-size:12px; }
-    .headerBtn{ height:30px; padding:0 10px; font-size:12px; }
+      .header{ font-size:16px; }
+      .todayText{ font-size:12px; }
+      .headerBtn{ height:30px; padding:0 10px; font-size:12px; }
 
-    /* ✅ 날짜 표시 전환 */
-    .onlyDesktop{ display:none; }
-    .onlyMobile{ display:inline; }
+      .onlyDesktop{ display:none; }
+      .onlyMobile{ display:inline; }
 
-    .kpiGrid{ grid-template-columns:1fr; }
-    .kpiCard{ padding:18px; }
-    .kpiValue{ font-size:34px; }
-    .row{ grid-template-columns:84px 1fr; }
-    input[type="date"].control{ height:36px; line-height:36px; }
+      .kpiGrid{ grid-template-columns:1fr; }
+      .kpiCard{ padding:18px; }
+      .kpiValue{ font-size:34px; }
+      .row{ grid-template-columns:84px 1fr; }
+      input[type="date"].control{ height:36px; line-height:36px; }
+      .panelTitle{ font-size:14px; }
 
-    .panelTitle{ font-size:14px; }
+      table{ table-layout: fixed; }
 
-    table{ table-layout: fixed; }
-
-    th, td{
+      th, td{
         font-size:11px;
         padding:6px 6px;
         white-space:nowrap;
         overflow:hidden;
         text-overflow:ellipsis;
+      }
+
+      th:nth-child(1), td:nth-child(1){ width:26%; }
+      th:nth-child(2), td:nth-child(2){ width:16%; }
+      th:nth-child(3), td:nth-child(3){ width:28%; }
+      th:nth-child(4), td:nth-child(4){ width:20%; }
+      th:nth-child(5), td:nth-child(5){ width:10%; text-align:right; }
+
+      .panel{ padding:14px; }
     }
-
-    th:nth-child(1), td:nth-child(1){ width:26%; }
-    th:nth-child(2), td:nth-child(2){ width:16%; }
-    th:nth-child(3), td:nth-child(3){ width:28%; }
-    th:nth-child(4), td:nth-child(4){ width:20%; }
-    th:nth-child(5), td:nth-child(5){ width:10%; text-align:right; }
-
-    .panel{ padding:14px; }
-    
-}
   `;
 
   // Fetch
@@ -391,15 +378,12 @@ export default function DashboardPage() {
     setStoreCode("");
   }, [region]);
 
-  // KPI (정의 확정)
+  // KPI
   const kpi = useMemo(() => {
     const enteredStores = summary.filter((r) => r.is_entered === 1).length;
     const notEnteredStores = summary.filter((r) => r.is_entered === 0).length;
-
     const totalCnt = summary.length > 0 ? Number(summary[0]?.total_cnt ?? 0) : 0;
-
     const inputRows = items.length;
-
     return { enteredStores, notEnteredStores, totalCnt, inputRows };
   }, [summary, items]);
 
@@ -416,38 +400,33 @@ export default function DashboardPage() {
     <div className="page">
       <style dangerouslySetInnerHTML={{ __html: styles }} />
 
-    <div className="header">
-    <div className="headerInner">
-        <div className="logo">KFC OPERATIONS - 유통기한 DASHBOARD</div>
+      <div className="header">
+        <div className="headerInner">
+          <div className="logo">KFC OPERATIONS - 유통기한 DASHBOARD</div>
 
-        <div className="headerRight">
-        {/* ✅ 입력하기를 날짜보다 왼쪽에 두고, 클릭 시 localhost:3000 으로 이동 */}
-          <button
-            className="headerBtn"
-            type="button"
-            onClick={() => {
-              const qs = new URLSearchParams();
+          <div className="headerRight">
+            <button
+              className="headerBtn"
+              type="button"
+              onClick={() => {
+                const qs = new URLSearchParams();
+                if (currentStoreCode) qs.set("store_code", currentStoreCode);
+                if (currentStoreName) qs.set("store_name", currentStoreName);
+                const q = qs.toString();
+                router.push(q ? `/?${q}` : `/`);
+              }}
+            >
+              입력하기
+            </button>
 
-              if (currentStoreCode) qs.set("store_code", currentStoreCode);
-              if (currentStoreName) qs.set("store_name", currentStoreName);
-
-              const q = qs.toString();
-              router.push(q ? `/?${q}` : `/`);
-            }}
-          >
-            입력하기
-          </button>
-
-        <div className="todayText">{ymdToday()}</div>
+            <div className="todayText">{ymdToday()}</div>
+          </div>
         </div>
-    </div>
-    </div>
+      </div>
 
       <div className="container">
         <div className="grid">
-          {/* Left */}
           <div className="leftCol">
-            {/* KPI */}
             <div className="kpiGrid">
               <Kpi title="입력매장수" value={kpi.enteredStores} />
               <Kpi title="미입력매장수" value={kpi.notEnteredStores} />
@@ -455,7 +434,6 @@ export default function DashboardPage() {
               <Kpi title="조회된 입력건수" value={kpi.inputRows} />
             </div>
 
-            {/* Filters */}
             <div className="filterBox">
               <div className="filterTitle">필터</div>
 
@@ -484,11 +462,7 @@ export default function DashboardPage() {
 
                 <div className="row">
                   <div className="rowLabel">매장</div>
-                  <select
-                    className="control"
-                    value={storeCode}
-                    onChange={(e) => setStoreCode(e.target.value)}
-                  >
+                  <select className="control" value={storeCode} onChange={(e) => setStoreCode(e.target.value)}>
                     <option value="">전체</option>
                     {storeOptions.map((s) => (
                       <option key={s.store_code} value={s.store_code}>
@@ -519,7 +493,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Right Panel */}
           <div className="panel">
             <div className="panelTitle">📋 자재별 유통기한 현황 (선택 날짜 기준 정렬)</div>
 
@@ -545,7 +518,6 @@ export default function DashboardPage() {
                       <td>{r.category}</td>
                       <td>{r.item_name}</td>
 
-                      {/* ✅ PC: YYYY-MM-DD(요일) / 모바일: YY-MM-DD */}
                       <td className="dangerText">
                         <span className="onlyDesktop">{toYMD(r.expiry_date)}</span>
                         <span className="onlyMobile">{toYMDShort(r.expiry_date)}</span>
@@ -579,5 +551,13 @@ function Kpi({ title, value }) {
       <div className="kpiTitle">{title}</div>
       <div className="kpiValue">{safe}</div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 40 }}>로딩중...</div>}>
+      <DashboardInner />
+    </Suspense>
   );
 }
