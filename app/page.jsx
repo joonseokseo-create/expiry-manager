@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { Suspense, useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -623,6 +625,19 @@ body{
 
     setError("");
     setSuccess("로그인에 성공하였습니다.");
+
+
+    localStorage.setItem('kfc_store_info', JSON.stringify({
+    storeCode: code,
+    storeName: name,
+    loggedIn: true
+  }));
+
+    setTimeout(() => {
+      setLoggedIn(true);
+      setSuccess("");
+    }, 600);
+  }
 
     setTimeout(() => {
       setLoggedIn(true);

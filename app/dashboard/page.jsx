@@ -69,6 +69,7 @@ export default function DashboardPage() {
 function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const storedName = localStorage.getItem('kfc_store_name') || "";
 
   const [summary, setSummary] = useState([]);
   const [items, setItems] = useState([]);
@@ -430,10 +431,11 @@ function DashboardPageInner() {
               입력하기
             </button>
 
-            <div className="todayText">{ymdToday()}</div>
+            {/* ★ 여기서 매장명 항상 표시되게 변경 ★ */}
+            <div className="todayText">
+              {ymdToday()} | {currentStoreName || storedName || "매장명 없음"}
+            </div>
           </div>
-        </div>
-      </div>
 
       <div className="container">
         <div className="grid">
