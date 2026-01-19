@@ -1,8 +1,9 @@
 "use client";
 
-import React, { Suspense } from "react";
-import { useMemo, useState, useEffect } from "react";
+import React, { Suspense, useMemo, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+
+export const dynamic = "force-dynamic"; // ✅ 프리렌더로 인한 빌드 오류 방지(보험)
 
 const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
 
@@ -41,6 +42,7 @@ function toYMDShort(v) {
   if (!v) return "";
 
   const raw = String(v);
+
   const m = raw.match(/\d{4}-\d{2}-\d{2}/);
   if (m) return m[0].slice(2);
 
@@ -55,10 +57,20 @@ function toYMDShort(v) {
   return raw.slice(0, 10);
 }
 
-function DashboardInner() {
-  const [summary, setSummary] = useState([]);
+export default function DashboardPage() {
+  // ✅ useSearchParams()는 Suspense 안에서만 호출되어야 빌드 에러가 안남
+  return (
+    <Suspense fallback={<div style={{ padding: 40 }}>로딩중...</div>}>
+      <DashboardPageInner />
+    </Suspense>
+  );
+}
+
+function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const [summary, setSummary] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -296,6 +308,7 @@ function DashboardInner() {
       .kpiValue{ font-size:34px; }
       .row{ grid-template-columns:84px 1fr; }
       input[type="date"].control{ height:36px; line-height:36px; }
+
       .panelTitle{ font-size:14px; }
 
       table{ table-layout: fixed; }
@@ -364,9 +377,7 @@ function DashboardInner() {
     for (const r of rows) {
       if (r.store_code) map.set(r.store_code, { store_code: r.store_code, store_name: r.store_name });
     }
-    return Array.from(map.values()).sort((a, b) =>
-      String(a.store_code).localeCompare(String(b.store_code))
-    );
+    return Array.from(map.values()).sort((a, b) => String(a.store_code).localeCompare(String(b.store_code)));
   }, [summary, region]);
 
   const categoryOptions = useMemo(() => {
@@ -551,13 +562,5 @@ function Kpi({ title, value }) {
       <div className="kpiTitle">{title}</div>
       <div className="kpiValue">{safe}</div>
     </div>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={<div style={{ padding: 40 }}>로딩중...</div>}>
-      <DashboardInner />
-    </Suspense>
   );
 }
