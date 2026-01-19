@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { Suspense, useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+// ✅ 보험: 정적 프리렌더 강제 시도 차단
+export const dynamic = "force-dynamic";
 
 const CATEGORY_ICON_MAP = {
   워크인: "🍗",
@@ -27,11 +30,19 @@ const CATEGORY_ORDER = [
   "기타",
 ];
 
-
-
 export default function Page() {
+  // ✅ 여기서는 절대 useSearchParams() 호출하면 안 됨
+  return (
+    <Suspense fallback={<div style={{ padding: 40 }}>로딩중...</div>}>
+      <PageInner />
+    </Suspense>
+  );
+}
+
+function PageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
   const styles = useMemo(
     () => `
 *{
@@ -281,7 +292,6 @@ body{
   color:#2E7D32;
 }
 
-/* ===== 모달 달력 (크게) ===== */
 .modal-backdrop{
   position:fixed;
   inset:0;
@@ -398,7 +408,6 @@ body{
   cursor:pointer;
 }
 
-/* ===== 모바일 최적화 (폰트 더 작게) ===== */
 @media (max-width: 768px){
   .header-content{padding:0 16px}
   .logo{font-size:15px;letter-spacing:0.5px}
@@ -455,15 +464,16 @@ body{
     []
   );
 
-  // ✅ categories는 기존 Cloud Run API에서 계속 가져오고
-  // ✅ 저장은 Next.js 내부 API(/api/...)로 보냅니다.
   const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
 
-  // 로그인
   const [storeCode, setStoreCode] = useState("");
   const [storeName, setStoreName] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
-    // ✅ URL 파라미터 자동 로그인 (여기에 붙여넣기)
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // ✅ URL 파라미터 자동 로그인
   useEffect(() => {
     const qCode = (searchParams.get("store_code") || "").trim();
     const qName = (searchParams.get("store_name") || "").trim();
@@ -481,28 +491,18 @@ body{
     setSuccess("");
   }, [searchParams]);
 
-  // 메시지
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-
-  // 저장 중
   const [saving, setSaving] = useState(false);
 
-  // 데이터
   const [categories, setCategories] = useState(null);
   const [dates, setDates] = useState({});
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [catError, setCatError] = useState("");
 
-  // 필터 UX
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [searchText, setSearchText] = useState("");
 
-  // 최근 선택 날짜(다음 입력 기본값)
   const [lastPickedDate, setLastPickedDate] = useState("");
 
-  // 달력 모달 상태
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activeKey, setActiveKey] = useState("");
   const [activeLabel, setActiveLabel] = useState("");
@@ -518,11 +518,10 @@ body{
     return code ? `expiry_dates_${code}` : "";
   }, [storeCode]);
 
-  // 1) 카테고리 로딩(캐시 먼저 → 서버로 최신 갱신)
+  // 카테고리 로딩
   useEffect(() => {
     const cacheKey = "categories_cache_v1";
 
-    // (1) 캐시 먼저 화면에 띄우기(즉시)
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -531,7 +530,6 @@ body{
       }
     } catch {}
 
-    // (2) 서버에서 최신값 다시 받아서 갱신(백그라운드)
     setLoadingCategories(true);
     fetch(`${API_BASE}/categories`, { cache: "no-store" })
       .then((res) => res.json())
@@ -548,12 +546,12 @@ body{
       .catch((err) => {
         console.error("카테고리 호출 실패:", err);
         setCatError("카테고리 로딩 실패");
-        setCategories((prev) => prev || []); // 기존 캐시라도 있으면 유지
+        setCategories((prev) => prev || []);
       })
       .finally(() => setLoadingCategories(false));
   }, []);
 
-  // 2) 로그인 후 localStorage 로드
+  // localStorage load
   useEffect(() => {
     if (!loggedIn) return;
     if (!storageKey) return;
@@ -572,7 +570,7 @@ body{
     }
   }, [loggedIn, storageKey]);
 
-  // 3) dates/lastPickedDate 변경 시 localStorage 저장 (임시저장)
+  // localStorage save
   useEffect(() => {
     if (!loggedIn) return;
     if (!storageKey) return;
@@ -584,9 +582,6 @@ body{
     }
   }, [dates, lastPickedDate, loggedIn, storageKey]);
 
-
-  
-  // 4) 필터 적용
   const filteredCategories = useMemo(() => {
     if (!categories) return [];
 
@@ -600,7 +595,6 @@ body{
       }))
       .filter((cat) => (cat.items || []).length > 0);
 
-    // ✅ 여기서 순서 고정
     filtered.sort((a, b) => {
       const ai = CATEGORY_ORDER.indexOf(a.category);
       const bi = CATEGORY_ORDER.indexOf(b.category);
@@ -609,8 +603,6 @@ body{
 
     return filtered;
   }, [categories, selectedCategory, searchText]);
-
-
 
   function onLogin(e) {
     e.preventDefault();
@@ -662,7 +654,6 @@ body{
     [todayText]
   );
 
-  // 날짜 모달 열기: "최근 입력일"을 기본 선택으로 주입
   const openPicker = useCallback(
     (key, label) => {
       const current = dates[key] || "";
@@ -706,7 +697,6 @@ body{
     closePicker();
   }, [activeKey, closePicker]);
 
-  // ✅ 저장: dates -> entries 배열로 변환 후 API 호출
   const onSave = useCallback(async () => {
     try {
       setError("");
@@ -718,7 +708,6 @@ body{
         return;
       }
 
-      // dates: { "카테고리__자재명": "YYYY-MM-DD", ... }
       const entries = Object.entries(dates)
         .filter(([_, v]) => Boolean(v))
         .map(([k, v]) => {
@@ -763,7 +752,6 @@ body{
     <main>
       <style dangerouslySetInnerHTML={{ __html: styles }} />
 
-      {/* 헤더 */}
       <div className="header">
         <div className="header-content">
           <div className="logo">KFC OPERATIONS - 자재유통기한 관리</div>
@@ -780,7 +768,6 @@ body{
         </div>
       </div>
 
-      {/* 로그인 화면 */}
       {!loggedIn && (
         <div className="container">
           <div className="login-box">
@@ -819,33 +806,23 @@ body{
         </div>
       )}
 
-      {/* 메인 화면 */}
       {loggedIn && (
         <div className="container">
           <div className="main-content">
-            <h2 style={{ color: "#A3080B", fontSize: 28, fontWeight: 900 }}>
-              유효기간 입력
-            </h2>
+            <h2 style={{ color: "#A3080B", fontSize: 28, fontWeight: 900 }}>유효기간 입력</h2>
 
             <p style={{ color: "#666", marginTop: 8, marginBottom: 18 }}>
               매장: <b>{storeCode.trim()}</b> | <b>{storeName.trim()}</b>
             </p>
 
-            {loadingCategories && (
-              <div className="alert alert-success">카테고리 불러오는 중...</div>
-            )}
+            {loadingCategories && <div className="alert alert-success">카테고리 불러오는 중...</div>}
             {catError && <div className="alert alert-error">{catError}</div>}
 
             {error && <div className="alert alert-error">{error}</div>}
             {success && <div className="alert alert-success">{success}</div>}
 
-            {/* 필터 UI */}
             <div style={{ display: "flex", gap: 12, margin: "20px 0" }}>
-              <select
-                className="form-input"
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-              >
+              <select className="form-input" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
                 <option value="ALL">전체 카테고리</option>
                 {categories?.map((cat, idx) => (
                   <option key={idx} value={cat.category}>
@@ -862,13 +839,10 @@ body{
               />
             </div>
 
-            {/* 리스트 */}
             {filteredCategories.map((category, ci) => (
               <div className="category-section" key={ci}>
                 <div className="category-title">
-                  <div className="category-icon">
-                    {CATEGORY_ICON_MAP[category.category] ?? CATEGORY_ICON_MAP["기타"]}
-                  </div>
+                  <div className="category-icon">{CATEGORY_ICON_MAP[category.category] ?? CATEGORY_ICON_MAP["기타"]}</div>
                   <div>{category.category}</div>
                 </div>
 
@@ -881,11 +855,7 @@ body{
                     <div className="item-row" key={key}>
                       <div className="item-name">📌 {item}</div>
 
-                      <button
-                        type="button"
-                        className="date-btn"
-                        onClick={() => openPicker(key, String(item))}
-                      >
+                      <button type="button" className="date-btn" onClick={() => openPicker(key, String(item))}>
                         <span className="hint">유효기간</span>
                         <span className="value">
                           {val ? val : lastPickedDate ? `${lastPickedDate} (최근)` : "선택"}
@@ -898,26 +868,17 @@ body{
                 })}
               </div>
             ))}
+
             <div className="save-section" style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-              {/* 저장 */}
-              <button
-                className="btn-primary"
-                style={{ maxWidth: 220 }}
-                type="button"
-                onClick={onSave}
-                disabled={saving}
-              >
+              <button className="btn-primary" style={{ maxWidth: 220 }} type="button" onClick={onSave} disabled={saving}>
                 {saving ? "저장 중..." : "저장하기"}
               </button>
 
-              {/* 결과조회 */}
               <button
                 className="btn-primary"
                 style={{ maxWidth: 220, background: "#444" }}
                 type="button"
-                onClick={() => {
-                  router.push(`/dashboard?store_code=${storeCode.trim()}`);
-                }}
+                onClick={() => router.push(`/dashboard?store_code=${storeCode.trim()}`)}
               >
                 결과조회
               </button>
@@ -926,7 +887,6 @@ body{
         </div>
       )}
 
-      {/* 날짜 선택 모달 (크게) */}
       {pickerOpen && (
         <div className="modal-backdrop" onClick={closePicker}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -950,12 +910,7 @@ body{
                 </button>
               </div>
 
-              <input
-                type="date"
-                className="big-date-input"
-                value={draftDate}
-                onChange={(e) => setDraftDate(e.target.value)}
-              />
+              <input type="date" className="big-date-input" value={draftDate} onChange={(e) => setDraftDate(e.target.value)} />
             </div>
 
             <div className="modal-footer">
