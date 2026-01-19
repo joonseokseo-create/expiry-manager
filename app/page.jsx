@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useMemo, useState, useEffect, useCallback } from "react";
+import React, { Suspense, useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-// ✅ 보험: 정적 프리렌더 강제 시도 차단
+// ✅ (보험) Static Export/Prerender 시도 막기
 export const dynamic = "force-dynamic";
 
 const CATEGORY_ICON_MAP = {
@@ -30,16 +30,17 @@ const CATEGORY_ORDER = [
   "기타",
 ];
 
+// ✅ Suspense Wrapper (여기서는 useSearchParams 절대 호출하지 않음)
 export default function Page() {
-  // ✅ 여기서는 절대 useSearchParams() 호출하면 안 됨
   return (
     <Suspense fallback={<div style={{ padding: 40 }}>로딩중...</div>}>
-      <PageInner />
+      <PageClient />
     </Suspense>
   );
 }
 
-function PageInner() {
+// ✅ 기존 페이지 로직은 여기로 그대로 이동
+function PageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -292,6 +293,7 @@ body{
   color:#2E7D32;
 }
 
+/* ===== 모달 달력 (크게) ===== */
 .modal-backdrop{
   position:fixed;
   inset:0;
@@ -408,6 +410,7 @@ body{
   cursor:pointer;
 }
 
+/* ===== 모바일 최적화 (폰트 더 작게) ===== */
 @media (max-width: 768px){
   .header-content{padding:0 16px}
   .logo{font-size:15px;letter-spacing:0.5px}
@@ -470,10 +473,6 @@ body{
   const [storeName, setStoreName] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
 
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  // ✅ URL 파라미터 자동 로그인
   useEffect(() => {
     const qCode = (searchParams.get("store_code") || "").trim();
     const qName = (searchParams.get("store_name") || "").trim();
@@ -491,6 +490,8 @@ body{
     setSuccess("");
   }, [searchParams]);
 
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [categories, setCategories] = useState(null);
@@ -518,7 +519,6 @@ body{
     return code ? `expiry_dates_${code}` : "";
   }, [storeCode]);
 
-  // 카테고리 로딩
   useEffect(() => {
     const cacheKey = "categories_cache_v1";
 
@@ -551,7 +551,6 @@ body{
       .finally(() => setLoadingCategories(false));
   }, []);
 
-  // localStorage load
   useEffect(() => {
     if (!loggedIn) return;
     if (!storageKey) return;
@@ -570,7 +569,6 @@ body{
     }
   }, [loggedIn, storageKey]);
 
-  // localStorage save
   useEffect(() => {
     if (!loggedIn) return;
     if (!storageKey) return;
@@ -809,20 +807,28 @@ body{
       {loggedIn && (
         <div className="container">
           <div className="main-content">
-            <h2 style={{ color: "#A3080B", fontSize: 28, fontWeight: 900 }}>유효기간 입력</h2>
+            <h2 style={{ color: "#A3080B", fontSize: 28, fontWeight: 900 }}>
+              유효기간 입력
+            </h2>
 
             <p style={{ color: "#666", marginTop: 8, marginBottom: 18 }}>
               매장: <b>{storeCode.trim()}</b> | <b>{storeName.trim()}</b>
             </p>
 
-            {loadingCategories && <div className="alert alert-success">카테고리 불러오는 중...</div>}
+            {loadingCategories && (
+              <div className="alert alert-success">카테고리 불러오는 중...</div>
+            )}
             {catError && <div className="alert alert-error">{catError}</div>}
 
             {error && <div className="alert alert-error">{error}</div>}
             {success && <div className="alert alert-success">{success}</div>}
 
             <div style={{ display: "flex", gap: 12, margin: "20px 0" }}>
-              <select className="form-input" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+              <select
+                className="form-input"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
                 <option value="ALL">전체 카테고리</option>
                 {categories?.map((cat, idx) => (
                   <option key={idx} value={cat.category}>
@@ -842,7 +848,9 @@ body{
             {filteredCategories.map((category, ci) => (
               <div className="category-section" key={ci}>
                 <div className="category-title">
-                  <div className="category-icon">{CATEGORY_ICON_MAP[category.category] ?? CATEGORY_ICON_MAP["기타"]}</div>
+                  <div className="category-icon">
+                    {CATEGORY_ICON_MAP[category.category] ?? CATEGORY_ICON_MAP["기타"]}
+                  </div>
                   <div>{category.category}</div>
                 </div>
 
@@ -855,7 +863,11 @@ body{
                     <div className="item-row" key={key}>
                       <div className="item-name">📌 {item}</div>
 
-                      <button type="button" className="date-btn" onClick={() => openPicker(key, String(item))}>
+                      <button
+                        type="button"
+                        className="date-btn"
+                        onClick={() => openPicker(key, String(item))}
+                      >
                         <span className="hint">유효기간</span>
                         <span className="value">
                           {val ? val : lastPickedDate ? `${lastPickedDate} (최근)` : "선택"}
@@ -870,7 +882,13 @@ body{
             ))}
 
             <div className="save-section" style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-              <button className="btn-primary" style={{ maxWidth: 220 }} type="button" onClick={onSave} disabled={saving}>
+              <button
+                className="btn-primary"
+                style={{ maxWidth: 220 }}
+                type="button"
+                onClick={onSave}
+                disabled={saving}
+              >
                 {saving ? "저장 중..." : "저장하기"}
               </button>
 
@@ -878,7 +896,9 @@ body{
                 className="btn-primary"
                 style={{ maxWidth: 220, background: "#444" }}
                 type="button"
-                onClick={() => router.push(`/dashboard?store_code=${storeCode.trim()}`)}
+                onClick={() => {
+                  router.push(`/dashboard?store_code=${storeCode.trim()}`);
+                }}
               >
                 결과조회
               </button>
@@ -910,7 +930,12 @@ body{
                 </button>
               </div>
 
-              <input type="date" className="big-date-input" value={draftDate} onChange={(e) => setDraftDate(e.target.value)} />
+              <input
+                type="date"
+                className="big-date-input"
+                value={draftDate}
+                onChange={(e) => setDraftDate(e.target.value)}
+              />
             </div>
 
             <div className="modal-footer">
