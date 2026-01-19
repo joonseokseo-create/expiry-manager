@@ -626,18 +626,14 @@ body{
     setError("");
     setSuccess("로그인에 성공하였습니다.");
 
-
+    // ★★★★★ 여기부터 수정/추가 ★★★★★
+    // localStorage에 매장 정보 저장 (입력페이지에서 로그인 성공 시)
     localStorage.setItem('kfc_store_info', JSON.stringify({
-    storeCode: code,
-    storeName: name,
-    loggedIn: true
-  }));
-
-    setTimeout(() => {
-      setLoggedIn(true);
-      setSuccess("");
-    }, 600);
-  }
+      storeCode: code,
+      storeName: name,
+      loggedIn: true,
+      timestamp: new Date().toISOString()  // 나중에 오래된 정보 무시하려면 유용
+    }));
 
     setTimeout(() => {
       setLoggedIn(true);
