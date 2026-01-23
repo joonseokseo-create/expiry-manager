@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 /* =========================================================
  *  1) Date Utils
  * ========================================================= */
-function parseYMD(ymd: string) {
+function parseYMD(ymd) {
   const s = String(ymd || "").slice(0, 10);
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return new Date();
@@ -26,92 +26,82 @@ function parseYMD(ymd: string) {
   return new Date(y, mo - 1, d);
 }
 
+// =======================
+// Picker Style Constants
+// =======================
+const arrowBtnStyle = {
+  border: "none",
+  background: "transparent",
+  fontSize: 26,
+  fontWeight: 900,
+  cursor: "pointer",
+  lineHeight: 1,
+  color: "#555",
+};
+
+const numberAreaStyle = {
+  height: 120,
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  alignItems: "center",
+  cursor: "ns-resize",
+};
+
+
 /* =========================================================
- *  2) DateWheelPicker (Modal 내부에서 날짜 선택)
+ *  3) NumberPicker (Wheel UI)  ✅ DateWheelPicker보다 먼저 선언
  * ========================================================= */
-function DateWheelPicker({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const base = useMemo(() => parseYMD(value), [value]);
+function NumberPicker({ value, min, max, onChange }) {
+  const ref = React.useRef(null);
 
-  const [year, setYear] = useState(base.getFullYear());
-  const [month, setMonth] = useState(base.getMonth() + 1);
-  const [day, setDay] = useState(base.getDate());
+  // ✅ 직접입력 모드
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(String(value));
 
-  // value가 바뀌면 wheel 상태도 동기화
-  useEffect(() => {
-    const d = parseYMD(value);
-    setYear(d.getFullYear());
-    setMonth(d.getMonth() + 1);
-    setDay(d.getDate());
+  React.useEffect(() => {
+    if (!editing) setDraft(String(value));
+  }, [value, editing]);
+
+  const clamp = React.useCallback(
+    (v) => Math.min(max, Math.max(min, v)),
+    [min, max]
+  );
+
+  const commit = React.useCallback(() => {
+    const n = Number(draft);
+    if (!Number.isFinite(n)) {
+      setDraft(String(value));
+      setEditing(false);
+      return;
+    }
+    onChange(clamp(Math.trunc(n)));
+    setEditing(false);
+  }, [draft, onChange, clamp, value]);
+
+  const cancel = React.useCallback(() => {
+    setDraft(String(value));
+    setEditing(false);
   }, [value]);
 
-  // 해당 월의 최대 일수 계산
-  const maxDay = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
-
-  // day가 월 범위를 넘으면 clamp
-  useEffect(() => {
-    if (day > maxDay) setDay(maxDay);
-    if (day < 1) setDay(1);
-  }, [day, maxDay]);
-
-  // year/month/day 변경 → yyyy-mm-dd 문자열로 onChange
-  useEffect(() => {
-    const mm = String(month).padStart(2, "0");
-    const dd = String(day).padStart(2, "0");
-    const next = `${year}-${mm}-${dd}`;
-    if (next !== String(value || "").slice(0, 10)) onChange(next);
-  }, [year, month, day, value, onChange]);
-
-  return (
-    <div style={{ display: "flex", justifyContent: "center", gap: 28 }}>
-      <NumberPicker value={year} min={2020} max={2035} onChange={setYear} />
-      <NumberPicker value={month} min={1} max={12} onChange={setMonth} />
-      <NumberPicker value={day} min={1} max={maxDay} onChange={setDay} />
-    </div>
-  );
-}
-
-/* =========================================================
- *  3) NumberPicker (Wheel UI)
- * ========================================================= */
-function NumberPicker({
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  onChange: (v: number) => void;
-}) {
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  const clamp = useCallback((v: number) => Math.min(max, Math.max(min, v)), [min, max]);
-
-  const move = useCallback(
-    (delta: number) => onChange(clamp(value + delta)),
+  const move = React.useCallback(
+    (delta) => onChange(clamp(value + delta)),
     [value, onChange, clamp]
   );
 
-  // 마우스 휠 이벤트 처리
-  useEffect(() => {
+  React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    const onWheel = (e: WheelEvent) => {
+    const onWheel = (e) => {
+      if (editing) return;
       e.preventDefault();
       move(e.deltaY > 0 ? 1 : -1);
     };
 
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [move]);
+  }, [move, editing]);
 
   const up = value + 1 <= max ? value + 1 : "";
   const down = value - 1 >= min ? value - 1 : "";
@@ -121,6 +111,7 @@ function NumberPicker({
       ref={ref}
       tabIndex={0}
       onKeyDown={(e) => {
+        if (editing) return;
         if (e.key === "ArrowUp") move(1);
         if (e.key === "ArrowDown") move(-1);
       }}
@@ -139,7 +130,50 @@ function NumberPicker({
 
       <div style={numberAreaStyle}>
         <div style={{ opacity: 0.25, height: 24 }}>{up}</div>
-        <div style={{ fontSize: 38, fontWeight: 900, color: "#A3080B" }}>{value}</div>
+
+        {/* ✅ 중앙 큰 숫자: 클릭하면 직접입력 */}
+        {!editing ? (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            style={{
+              border: "none",
+              background: "transparent",
+              padding: 0,
+              cursor: "text",
+              fontSize: 38,
+              fontWeight: 900,
+              color: "#A3080B",
+            }}
+            title="클릭해서 직접 입력"
+          >
+            {value}
+          </button>
+        ) : (
+          <input
+            autoFocus
+            inputMode="numeric"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.replace(/[^\d]/g, ""))}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") cancel();
+            }}
+            style={{
+              width: 96,
+              textAlign: "center",
+              fontSize: 34,
+              fontWeight: 900,
+              color: "#A3080B",
+              border: "2px solid #E0E0E0",
+              borderRadius: 10,
+              padding: "6px 8px",
+              outline: "none",
+            }}
+          />
+        )}
+
         <div style={{ opacity: 0.25, height: 24 }}>{down}</div>
       </div>
 
@@ -150,29 +184,84 @@ function NumberPicker({
   );
 }
 
-const arrowBtnStyle: React.CSSProperties = {
-  border: "none",
-  background: "transparent",
-  fontSize: 26,
-  fontWeight: 900,
-  cursor: "pointer",
-  lineHeight: 1,
-  color: "#555",
-};
+/* =========================================================
+ *  2) DateWheelPicker (Modal 내부 날짜 선택)
+ *  ✅ +7/+30 클릭 오류(무한루프) 방지 버전
+ * ========================================================= */
+function DateWheelPicker({ value, onChange }) {
+  // value를 항상 YYYY-MM-DD로 정규화
+  const norm = React.useCallback(
+    (v) => String(v || "").slice(0, 10),
+    []
+  );
 
-const numberAreaStyle: React.CSSProperties = {
-  height: 120,
-  display: "flex",
-  flexDirection: "column",
-  justifyContent: "center",
-  alignItems: "center",
-  cursor: "ns-resize",
-};
+  // 마지막으로 "처리한" value 추적 (루프 차단 핵심)
+  const lastValueRef = React.useRef(norm(value));
+
+  const initDate = React.useMemo(() => parseYMD(value), [value]);
+
+  const [year, setYear] = React.useState(() => initDate.getFullYear());
+  const [month, setMonth] = React.useState(() => initDate.getMonth() + 1);
+  const [day, setDay] = React.useState(() => initDate.getDate());
+
+  // 1) 외부 value가 바뀌면 내부 상태 동기화
+  React.useEffect(() => {
+    const v = norm(value);
+    if (!v) return;
+
+    // 이미 같은 value면 동작 안함
+    if (v === lastValueRef.current) return;
+
+    lastValueRef.current = v;
+
+    const d = parseYMD(v);
+    const ny = d.getFullYear();
+    const nm = d.getMonth() + 1;
+    const nd = d.getDate();
+
+    setYear((prev) => (prev === ny ? prev : ny));
+    setMonth((prev) => (prev === nm ? prev : nm));
+    setDay((prev) => (prev === nd ? prev : nd));
+  }, [value, norm]);
+
+  const maxDay = React.useMemo(
+    () => new Date(year, month, 0).getDate(),
+    [year, month]
+  );
+
+  // 2) day clamp (필요할 때만 set)
+  React.useEffect(() => {
+    if (day > maxDay) setDay(maxDay);
+    else if (day < 1) setDay(1);
+  }, [day, maxDay]);
+
+  // 3) 내부 year/month/day 변경 → 부모 value 업데이트 (단, lastValueRef로 루프 차단)
+  React.useEffect(() => {
+    const mm = String(month).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
+    const next = `${year}-${mm}-${dd}`;
+
+    // 이미 마지막 처리 값이면 onChange 호출 금지
+    if (next === lastValueRef.current) return;
+
+    lastValueRef.current = next;
+    onChange(next);
+  }, [year, month, day, onChange]);
+
+  return (
+    <div style={{ display: "flex", justifyContent: "center", gap: 28 }}>
+      <NumberPicker value={year} min={2026} max={2035} onChange={setYear} />
+      <NumberPicker value={month} min={1} max={12} onChange={setMonth} />
+      <NumberPicker value={day} min={1} max={maxDay} onChange={setDay} />
+    </div>
+  );
+}
+
 
 /* =========================================================
  *  4) Category config
  * ========================================================= */
-const CATEGORY_ICON_MAP: Record<string, string> = {
+const CATEGORY_ICON_MAP = {
   워크인: "🍗",
   냉동: "❄️",
   냉장: "🧊",
@@ -208,397 +297,92 @@ export default function Page() {
 }
 
 /* =========================================================
- *  6) Main Page Component
+ *  6) Main Component
  * ========================================================= */
 function PageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  /* ---------------------------------------------------------
-   *  6-1) Styles (inline css string)
-   * --------------------------------------------------------- */
-const styles = useMemo(
+  // searchParams 값은 변수로 빼서 effect 의존성 안정화
+  const urlStoreCode = (searchParams.get("store_code") || "").trim();
+  const urlStoreName = (searchParams.get("store_name") || "").trim();
+
+  /* ---------------------------
+   *  스타일 (문자열 CSS)
+   * --------------------------- */
+  const styles = useMemo(
     () => `
-/* =========================================
-   1. 전역 초기화 및 기본 설정
-   ========================================= */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: "Pretendard", system-ui, -apple-system, BlinkMacSystemFont;
-}
-
-body {
-  /* 부드러운 오렌지/베이지 톤의 배경 그라데이션 */
-  background: linear-gradient(135deg, #FFF1E2 0%, #F5D4B7 100%);
-  min-height: 100vh;
-}
-
-/* =========================================
-   2. 헤더 (상단 바)
-   ========================================= */
-.header {
-  /* 진한 레드 계열의 브랜드 컬러 그라데이션 */
-  background: linear-gradient(90deg, #A3080B 0%, #DC001B 100%);
-  padding: 20px 0;
-  box-shadow: 0 4px 12px rgba(163, 8, 11, .3);
-}
-
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 30px;
-  gap: 12px;
-}
-
-.logo {
-  font-size: 32px;
-  font-weight: 900;
-  color: #fff;
-  letter-spacing: 2px;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, .3);
-}
-
-.user-info {
-  color: #FFF1E2;
-  font-size: 18px;
-  font-weight: 900;
-  white-space: nowrap;
-}
-
-/* =========================================
-   3. 레이아웃 컨테이너 및 공통 박스
-   ========================================= */
-.container {
-  max-width: 1200px;
-  margin: 40px auto;
-  padding: 0 20px;
-}
-
-/* 로그인 박스 및 메인 콘텐츠 흰색 카드 스타일 */
-.login-box, .main-content {
-  background: #fff;
-  border-radius: 15px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, .1);
-  padding: 40px;
-  margin-bottom: 30px;
-}
-
-/* =========================================
-   4. 로그인 폼 요소
-   ========================================= */
-.login-box {
-  max-width: 450px;
-  margin: 100px auto;
-}
-
-.login-title {
-  text-align: center;
-  color: #A3080B;
-  font-size: 28px;
-  font-weight: 900;
-  margin-bottom: 10px;
-}
-
-.login-subtitle {
-  text-align: center;
-  color: #666;
-  margin-bottom: 30px;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-label {
-  display: block;
-  color: #333;
-  font-weight: 700;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.form-input {
-  width: 100%;
-  padding: 14px 18px;
-  border: 2px solid #E0E0E0;
-  border-radius: 8px;
-  font-size: 15px;
-  transition: all .3s;
-  background: #fff;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #A3080B; /* 포커스 시 브랜드 컬러로 변경 */
-  box-shadow: 0 0 0 3px rgba(163, 8, 11, .1);
-}
-
-/* 메인 버튼 스타일 */
-.btn-primary {
-  width: 100%;
-  padding: 16px;
-  margin-top: 10px;
-  background: linear-gradient(90deg, #A3080B 0%, #DC001B 100%);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: all .2s;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px); /* 살짝 떠오르는 효과 */
-  box-shadow: 0 6px 20px rgba(163, 8, 11, .35);
-}
-
-.btn-primary:disabled {
-  opacity: .6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-/* =========================================
-   5. 카테고리 및 아이템 리스트
-   ========================================= */
-.category-section {
-  background: #FFF1E2;
-  border-left: 5px solid #A3080B;
-  padding: 25px;
-  margin-bottom: 25px;
-  border-radius: 10px;
-}
-
-.category-title {
-  color: #A3080B;
-  font-size: 22px;
-  font-weight: 900;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-}
-
-.category-icon {
-  width: 30px;
-  height: 30px;
-  background: #A3080B;
-  color: #fff;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  flex: 0 0 30px;
-}
-
-/* 각 아이템 행 (그리드 레이아웃) */
-.item-row {
-  background: #fff;
-  padding: 20px;
-  margin-bottom: 12px;
-  border-radius: 12px;
-  display: grid;
-  grid-template-columns: 2fr 3fr 1.5fr; /* 이름, 날짜, 상태 비율 */
-  gap: 20px;
-  align-items: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
-}
-
-.item-name {
-  font-weight: 800;
-  color: #333;
-}
-
-/* 날짜 선택 버튼 스타일 */
-.date-btn {
-  width: 100%;
-  padding: 14px 14px;
-  border: 2px solid #E0E0E0;
-  border-radius: 10px;
-  background: #FAFAFA;
-  font-weight: 800;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 15px;
-}
-
-.date-btn:active {
-  transform: scale(.995);
-}
-
-.date-btn .hint { color: #666; font-weight: 800; }
-.date-btn .value { color: #111; font-weight: 900; }
-
-/* 상태 표시 배지 (안전, 주의, 위험) */
-.status-badge {
-  padding: 8px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 900;
-  text-align: center;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-}
-
-.status-ok { background: #4CAF50; color: #fff; }
-.status-warning { background: #FFC107; color: #333; }
-.status-danger { background: #F44336; color: #fff; }
-
-/* 하단 저장 섹션 (플로팅 바) */
-.save-section {
-  position: sticky;
-  bottom: 20px;
-  background: #fff;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, .1);
-  text-align: center;
-}
-
-/* 알림 메시지 (성공/에러) */
-.alert {
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  font-weight: 700;
-}
-.alert-error { background: #FFEBEE; color: #C62828; }
-.alert-success { background: #E8F5E9; color: #2E7D32; }
-
-/* =========================================
-   6. 모달 팝업 창
-   ========================================= */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, .55);
-  display: flex;
-  align-items: flex-end; /* 모바일 대응을 위해 아래에서 위로 */
-  justify-content: center;
-  padding: 16px;
-  z-index: 9999;
-}
-
-.modal {
-  width: 100%;
-  max-width: 520px;
-  background: #fff;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  background: #FFF1E2;
-  border-bottom: 1px solid #f0e0d1;
-}
-
-.modal-title { font-weight: 900; color: #A3080B; }
-.modal-close { border: none; background: transparent; font-size: 22px; cursor: pointer; font-weight: 900; color: #A3080B; }
-.modal-body { padding: 16px; }
-
-/* 모달 내부 퀵 액션 버튼들 */
-.quick-actions {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.quick-actions button {
-  flex: 1;
-  padding: 12px 10px;
-  border-radius: 10px;
-  border: 2px solid #E0E0E0;
-  background: #fff;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.quick-actions button:hover { border-color: #A3080B; }
-
-.modal-footer {
-  padding: 14px 16px;
-  border-top: 1px solid #f2f2f2;
-  display: flex;
-  gap: 10px;
-}
-
-.btn-secondary {
-  flex: 1;
-  padding: 14px 12px;
-  border-radius: 10px;
-  border: 2px solid #E0E0E0;
-  background: #fff;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.btn-confirm {
-  flex: 2;
-  padding: 14px 12px;
-  border-radius: 10px;
-  border: none;
-  background: linear-gradient(90deg, #A3080B 0%, #DC001B 100%);
-  color: #fff;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-/* =========================================
-   7. 반응형 디자인 (모바일 전용)
-   ========================================= */
-@media (max-width: 768px) {
-  .header-content { padding: 0 16px; }
-  .logo { font-size: 15px; letter-spacing: .5px; }
-  .user-info { font-size: 11px; }
-  
-  .login-box { margin: 60px auto; padding: 24px; }
-  .main-content { padding: 20px; }
-  .category-title { font-size: 16px; }
-  
-  /* 모바일에서는 그리드를 세로 한 줄로 변경 */
-  .item-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 16px;
-  }
-  
-  .item-name { font-size: 14px; line-height: 1.25; }
-  .date-btn { font-size: 13px; padding: 16px 14px; border-radius: 12px; }
-  .status-badge { font-size: 11px; padding: 6px 10px; justify-self: start; width: fit-content; }
-  
-  .modal-title { font-size: 15px; }
-  .quick-actions button { font-size: 13px; padding: 10px 6px; }
-  .category-section { padding: 16px; }
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Pretendard",system-ui,-apple-system,BlinkMacSystemFont;}
+body{background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);min-height:100vh;}
+.header{background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);padding:20px 0;box-shadow:0 4px 12px rgba(163,8,11,.3);}
+.header-content{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 30px;gap:12px;}
+.logo{font-size:32px;font-weight:900;color:#fff;letter-spacing:2px;text-shadow:2px 2px 4px rgba(0,0,0,.3);}
+.user-info{color:#FFF1E2;font-size:18px;font-weight:900;white-space:nowrap;}
+.container{max-width:1200px;margin:40px auto;padding:0 20px;}
+.login-box,.main-content{background:#fff;border-radius:15px;box-shadow:0 8px 32px rgba(0,0,0,.1);padding:40px;margin-bottom:30px;}
+.login-box{max-width:450px;margin:100px auto;}
+.login-title{text-align:center;color:#A3080B;font-size:28px;font-weight:900;margin-bottom:10px;}
+.login-subtitle{text-align:center;color:#666;margin-bottom:30px;}
+.form-group{margin-bottom:20px}
+.form-label{display:block;color:#333;font-weight:700;margin-bottom:8px;font-size:14px;}
+.form-input{width:100%;padding:14px 18px;border:2px solid #E0E0E0;border-radius:8px;font-size:15px;transition:all .3s;background:#fff;}
+.form-input:focus{outline:none;border-color:#A3080B;box-shadow:0 0 0 3px rgba(163,8,11,.1);}
+.btn-primary{width:100%;padding:16px;margin-top:10px;background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:800;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px;}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(163,8,11,.35);}
+.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none;}
+.category-section{background:#FFF1E2;border-left:5px solid #A3080B;padding:25px;margin-bottom:25px;border-radius:10px;}
+.category-title{color:#A3080B;font-size:22px;font-weight:900;margin-bottom:20px;display:flex;align-items:center;}
+.category-icon{width:30px;height:30px;background:#A3080B;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:12px;flex:0 0 30px;}
+.item-row{background:#fff;padding:20px;margin-bottom:12px;border-radius:12px;display:grid;grid-template-columns:2fr 3fr 1.5fr;gap:20px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+.item-name{font-weight:800;color:#333;}
+.date-btn{width:100%;padding:14px 14px;border:2px solid #E0E0E0;border-radius:10px;background:#FAFAFA;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:15px;}
+.date-btn:active{transform:scale(.995);}
+.date-btn .hint{color:#666;font-weight:800;}
+.date-btn .value{color:#111;font-weight:900;}
+.status-badge{padding:8px 12px;border-radius:20px;font-size:12px;font-weight:900;text-align:center;text-transform:uppercase;letter-spacing:.5px;}
+.status-ok{background:#4CAF50;color:#fff}
+.status-warning{background:#FFC107;color:#333}
+.status-danger{background:#F44336;color:#fff}
+.save-section{position:sticky;bottom:20px;background:#fff;padding:20px;border-radius:12px;box-shadow:0 -4px 20px rgba(0,0,0,.1);text-align:center;}
+.alert{padding:12px 16px;border-radius:8px;margin-bottom:20px;font-weight:700;}
+.alert-error{background:#FFEBEE;color:#C62828;}
+.alert-success{background:#E8F5E9;color:#2E7D32;}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;padding:16px;z-index:9999;}
+.modal{width:100%;max-width:520px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25);}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:#FFF1E2;border-bottom:1px solid #f0e0d1;}
+.modal-title{font-weight:900;color:#A3080B;}
+.modal-close{border:none;background:transparent;font-size:22px;cursor:pointer;font-weight:900;color:#A3080B;}
+.modal-body{padding:16px;}
+.quick-actions{display:flex;gap:10px;margin-bottom:12px;}
+.quick-actions button{flex:1;padding:12px 10px;border-radius:10px;border:2px solid #E0E0E0;background:#fff;font-weight:900;cursor:pointer;}
+.quick-actions button:hover{border-color:#A3080B;}
+.modal-footer{padding:14px 16px;border-top:1px solid #f2f2f2;display:flex;gap:10px;}
+.btn-secondary{flex:1;padding:14px 12px;border-radius:10px;border:2px solid #E0E0E0;background:#fff;font-weight:900;cursor:pointer;}
+.btn-confirm{flex:2;padding:14px 12px;border-radius:10px;border:none;background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);color:#fff;font-weight:900;cursor:pointer;}
+@media (max-width:768px){
+  .header-content{padding:0 16px}
+  .logo{font-size:15px;letter-spacing:.5px}
+  .user-info{font-size:11px}
+  .login-box{margin:60px auto;padding:24px}
+  .main-content{padding:20px}
+  .category-title{font-size:16px}
+  .item-row{grid-template-columns:1fr;gap:10px;padding:16px;}
+  .item-name{font-size:14px;line-height:1.25;}
+  .date-btn{font-size:13px;padding:16px 14px;border-radius:12px;}
+  .status-badge{font-size:11px;padding:6px 10px;justify-self:start;width:fit-content;}
+  .modal-title{font-size:15px;}
+  .quick-actions button{font-size:13px;padding:10px 6px;}
+  .category-section{padding:16px;}
 }
 `,
     []
   );
 
-  /* ---------------------------------------------------------
-   *  6-2) API Endpoint
-   * --------------------------------------------------------- */
   const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
 
-  /* ---------------------------------------------------------
-   *  6-3) Login State (store info)
-   * --------------------------------------------------------- */
+  /* ---------------------------
+   *  로그인 상태
+   * --------------------------- */
   const [storeCode, setStoreCode] = useState("");
   const [storeName, setStoreName] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
@@ -608,12 +392,8 @@ body {
   const [saving, setSaving] = useState(false);
 
   /* =========================================================
-   *  ✅ 추가 기능 핵심: "새로고침 시 URL 파라미터 유지"
-   *  - 로그인 성공 시 router.replace("/?store_code=...&store_name=...") 수행
-   *  - localStorage 복원으로 로그인 유지 + URL도 동기화
+   *  6-A) localStorage 기반 로그인 복원 (새로고침 유지)
    * ========================================================= */
-
-  // (A) localStorage에서 로그인 정보 복원 (최초 1회)
   useEffect(() => {
     try {
       const saved = localStorage.getItem("kfc_store_info");
@@ -622,8 +402,9 @@ body {
       const info = JSON.parse(saved);
       if (!info?.loggedIn || !info?.storeCode) return;
 
-      // 세션 만료 체크 (예: 24시간)
-      const ageMs = Date.now() - new Date(info.timestamp).getTime();
+      // 세션 만료 체크 (24시간)
+      const ts = info.timestamp ? new Date(info.timestamp).getTime() : Date.now();
+      const ageMs = Date.now() - ts;
       if (ageMs > 24 * 60 * 60 * 1000) {
         localStorage.removeItem("kfc_store_info");
         return;
@@ -639,42 +420,36 @@ body {
     }
   }, []);
 
-  // (B) URL 파라미터가 있으면 우선 적용 + localStorage 갱신
+  /* =========================================================
+   *  6-B) URL 파라미터가 있으면 우선 적용 + localStorage 갱신
+   * ========================================================= */
   useEffect(() => {
-    const qCode = (searchParams.get("store_code") || "").trim();
-    const qName = (searchParams.get("store_name") || "").trim();
-
-    if (!qCode || !/^1410\d{3}$/.test(qCode)) return;
+    if (!urlStoreCode || !/^1410\d{3}$/.test(urlStoreCode)) return;
 
     localStorage.setItem(
       "kfc_store_info",
       JSON.stringify({
-        storeCode: qCode,
-        storeName: qName,
+        storeCode: urlStoreCode,
+        storeName: urlStoreName,
         loggedIn: true,
         timestamp: new Date().toISOString(),
       })
     );
 
-    setStoreCode(qCode);
-    setStoreName(qName);
+    setStoreCode(urlStoreCode);
+    setStoreName(urlStoreName);
     setLoggedIn(true);
     setError("");
     setSuccess("");
-  }, [searchParams]);
+  }, [urlStoreCode, urlStoreName]);
 
-  // (C) ✅ NEW: loggedIn 상태가 복원되었는데 URL에 파라미터가 없으면, URL을 자동으로 맞춰준다.
-  //     - 사용자가 / 로 접속 → localStorage로 로그인 복원됨 → URL에 store_code가 없으면 replace로 주입
+  /* =========================================================
+   *  6-C) loggedIn인데 URL에 파라미터 없으면 주입 (URL 유지)
+   * ========================================================= */
   useEffect(() => {
     if (!loggedIn) return;
+    if (urlStoreCode && /^1410\d{3}$/.test(urlStoreCode)) return;
 
-    const qCode = (searchParams.get("store_code") || "").trim();
-    const qName = (searchParams.get("store_name") || "").trim();
-
-    // 이미 URL에 있으면 종료
-    if (qCode && /^1410\d{3}$/.test(qCode)) return;
-
-    // 현재 상태값으로 URL 동기화
     const code = storeCode.trim();
     const name = storeName.trim();
     if (!/^1410\d{3}$/.test(code) || !name) return;
@@ -683,24 +458,23 @@ body {
     q.set("store_code", code);
     q.set("store_name", name);
 
-    // history를 더럽히지 않게 replace 사용
     router.replace(`/?${q.toString()}`);
-  }, [loggedIn, storeCode, storeName, searchParams, router]);
+  }, [loggedIn, storeCode, storeName, urlStoreCode, router]);
 
-  /* ---------------------------------------------------------
-   *  6-4) Categories & Dates State
-   * --------------------------------------------------------- */
-  const [categories, setCategories] = useState<any[] | null>(null);
-  const [dates, setDates] = useState<Record<string, string>>({});
+  /* ---------------------------
+   *  카테고리/입력값 상태
+   * --------------------------- */
+  const [categories, setCategories] = useState(null);
+  const [dates, setDates] = useState({});
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [catError, setCatError] = useState("");
 
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [searchText, setSearchText] = useState("");
 
-  /* ---------------------------------------------------------
-   *  6-5) Date Picker Modal State
-   * --------------------------------------------------------- */
+  /* ---------------------------
+   *  날짜 선택 모달 상태
+   * --------------------------- */
   const [pickerOpen, setPickerOpen] = useState(false);
   const [activeKey, setActiveKey] = useState("");
   const [activeLabel, setActiveLabel] = useState("");
@@ -708,15 +482,14 @@ body {
 
   const todayText = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  // 매장별 dates 저장 키
   const storageKey = useMemo(() => {
     const code = storeCode.trim();
     return code ? `expiry_dates_${code}` : "";
   }, [storeCode]);
 
-  /* ---------------------------------------------------------
-   *  6-6) Categories Load (API + local cache)
-   * --------------------------------------------------------- */
+  /* =========================================================
+   *  카테고리 로드
+   * ========================================================= */
   useEffect(() => {
     const cacheKey = "categories_cache_v1";
 
@@ -747,9 +520,9 @@ body {
       .finally(() => setLoadingCategories(false));
   }, []);
 
-  /* ---------------------------------------------------------
-   *  6-7) Dates Load/Save (per store)
-   * --------------------------------------------------------- */
+  /* =========================================================
+   *  dates 로컬스토리지 로드/저장
+   * ========================================================= */
   useEffect(() => {
     if (!loggedIn || !storageKey) return;
     try {
@@ -772,9 +545,9 @@ body {
     }
   }, [dates, loggedIn, storageKey]);
 
-  /* ---------------------------------------------------------
-   *  6-8) Category Filtering / Sorting
-   * --------------------------------------------------------- */
+  /* =========================================================
+   *  필터링된 카테고리 계산
+   * ========================================================= */
   const filteredCategories = useMemo(() => {
     if (!categories) return [];
 
@@ -782,7 +555,7 @@ body {
       .filter((cat) => selectedCategory === "ALL" || cat.category === selectedCategory)
       .map((cat) => ({
         ...cat,
-        items: (cat.items || []).filter((item: string) =>
+        items: (cat.items || []).filter((item) =>
           String(item).toLowerCase().includes(searchText.toLowerCase())
         ),
       }))
@@ -797,11 +570,10 @@ body {
     return filtered;
   }, [categories, selectedCategory, searchText]);
 
-  /* ---------------------------------------------------------
-   *  6-9) Login Handler
-   *  ✅ NEW: 로그인 성공 시 URL에 store_code/store_name을 주입하여 새로고침 유지
-   * --------------------------------------------------------- */
-  function onLogin(e: React.FormEvent) {
+  /* =========================================================
+   *  로그인 핸들러
+   * ========================================================= */
+  function onLogin(e) {
     e.preventDefault();
 
     const code = storeCode.trim();
@@ -818,7 +590,6 @@ body {
       return;
     }
 
-    // localStorage 저장
     localStorage.setItem(
       "kfc_store_info",
       JSON.stringify({
@@ -829,22 +600,21 @@ body {
       })
     );
 
-    // 상태 반영
     setError("");
     setSuccess("로그인 성공");
     setLoggedIn(true);
 
-    // ✅ 핵심: URL을 /?store_code=...&store_name=... 로 유지
+    // URL도 같이 유지
     const q = new URLSearchParams();
     q.set("store_code", code);
     q.set("store_name", name);
     router.replace(`/?${q.toString()}`);
   }
 
-  /* ---------------------------------------------------------
-   *  6-10) Status Text (남은일수 계산)
-   * --------------------------------------------------------- */
-  function updateStatusText(dateStr: string) {
+  /* =========================================================
+   *  상태 텍스트(남은일수)
+   * ========================================================= */
+  function updateStatusText(dateStr) {
     if (!dateStr) return { text: "입력 필요", cls: "status-ok" };
 
     const expiry = parseYMD(dateStr);
@@ -857,11 +627,11 @@ body {
     return { text: `${diff}일 남음`, cls: "status-ok" };
   }
 
-  /* ---------------------------------------------------------
-   *  6-11) Date Helpers
-   * --------------------------------------------------------- */
+  /* =========================================================
+   *  날짜 유틸(+N일)
+   * ========================================================= */
   const addDays = useCallback(
-    (base: string, days: number) => {
+    (base, days) => {
       const d = parseYMD(base || todayText);
       d.setDate(d.getDate() + days);
       const y = d.getFullYear();
@@ -872,11 +642,11 @@ body {
     [todayText]
   );
 
-  /* ---------------------------------------------------------
-   *  6-12) Picker Open/Close/Confirm
-   * --------------------------------------------------------- */
+  /* =========================================================
+   *  모달 open/close/confirm
+   * ========================================================= */
   const openPicker = useCallback(
-    (key: string, label: string) => {
+    (key, label) => {
       const current = dates[key] || "";
       const initial = current || todayText;
 
@@ -902,9 +672,9 @@ body {
     closePicker();
   }, [activeKey, draftDate, closePicker]);
 
-  /* ---------------------------------------------------------
-   *  6-13) Save Handler (Bulk Save)
-   * --------------------------------------------------------- */
+  /* =========================================================
+   *  저장(서버 bulk 저장)
+   * ========================================================= */
   const onSave = useCallback(async () => {
     try {
       setError("");
@@ -930,7 +700,7 @@ body {
           if (!category || !item_name || !expiry_date) return null;
           return { category, item_name, expiry_date };
         })
-        .filter(Boolean) as Array<{ category: string; item_name: string; expiry_date: string }>;
+        .filter(Boolean);
 
       if (rawEntries.length === 0) {
         setError("저장할 항목이 없습니다. 유효기간을 먼저 입력해주세요.");
@@ -938,7 +708,7 @@ body {
       }
 
       // item_name 기준 dedupe
-      const uniqMap = new Map<string, (typeof rawEntries)[number]>();
+      const uniqMap = new Map();
       for (const e of rawEntries) {
         const dedupeKey = `${e.item_name}`;
         uniqMap.set(dedupeKey, e);
@@ -959,13 +729,13 @@ body {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        setError((data as any)?.error || "저장에 실패했습니다.");
+        setError(data?.error || "저장에 실패했습니다.");
         return;
       }
 
-      setSuccess(`저장 완료 (${(data as any).count}건)`);
+      setSuccess(`저장 완료 (${data.count}건)`);
       setTimeout(() => setSuccess(""), 1500);
-    } catch (e: any) {
+    } catch (e) {
       setError(e?.message || "저장 중 오류가 발생했습니다.");
     } finally {
       setSaving(false);
@@ -973,13 +743,13 @@ body {
   }, [dates, storeCode, todayText]);
 
   /* =========================================================
-   *  7) Render
+   *  Render
    * ========================================================= */
   return (
     <main>
       <style dangerouslySetInnerHTML={{ __html: styles }} />
 
-      {/* ---------- Header ---------- */}
+      {/* Header */}
       <div className="header">
         <div className="header-content">
           <div className="logo">KFC OPERATIONS - 자재유통기한 관리</div>
@@ -989,7 +759,7 @@ body {
         </div>
       </div>
 
-      {/* ---------- Login View ---------- */}
+      {/* Login View */}
       {!loggedIn && (
         <div className="container">
           <div className="login-box">
@@ -1028,11 +798,13 @@ body {
         </div>
       )}
 
-      {/* ---------- Main View ---------- */}
+      {/* Main View */}
       {loggedIn && (
         <div className="container">
           <div className="main-content">
-            <h2 style={{ color: "#A3080B", fontSize: 28, fontWeight: 900 }}>유효기간 입력</h2>
+            <h2 style={{ color: "#A3080B", fontSize: 28, fontWeight: 900 }}>
+              유효기간 입력
+            </h2>
 
             <p style={{ color: "#666", marginTop: 8, marginBottom: 18 }}>
               매장: <b>{storeCode.trim()}</b> | <b>{storeName.trim()}</b>
@@ -1077,7 +849,7 @@ body {
                   <div>{category.category}</div>
                 </div>
 
-                {(category.items || []).map((item: string) => {
+                {(category.items || []).map((item) => {
                   const key = `${category.category}__${String(item)}`;
                   const val = dates[key] || "";
                   const st = updateStatusText(val);
@@ -1134,7 +906,7 @@ body {
         </div>
       )}
 
-      {/* ---------- Date Picker Modal ---------- */}
+      {/* Date Picker Modal */}
       {pickerOpen && (
         <div className="modal-backdrop" onClick={closePicker}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
