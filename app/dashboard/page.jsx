@@ -1,12 +1,23 @@
 "use client";
 
-import React, { Suspense, useMemo, useState, useEffect } from "react";
+import React, {
+  Suspense,
+  useMemo,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useTransition,
+} from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
 
+/** =========================
+ *  0) 유틸 함수
+ * ========================= */
 function ymdToday() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -51,6 +62,9 @@ function toYMDShort(v) {
   return raw.slice(0, 10);
 }
 
+/** =========================
+ *  1) 페이지 엔트리 (Suspense)
+ * ========================= */
 export default function DashboardPage() {
   return (
     <Suspense fallback={<div style={{ padding: 40 }}>로딩중...</div>}>
@@ -59,24 +73,29 @@ export default function DashboardPage() {
   );
 }
 
+/** =========================
+ *  2) 실제 대시보드 컴포넌트
+ * ========================= */
 function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // ====== (A) Header에 표시할 "현재 매장" (URL > localStorage) ======
+  /** =========================
+   *  A) 현재 매장 정보 (Header 표시용)
+   * ========================= */
   const currentStoreCode = (searchParams.get("store_code") || "").trim();
   const currentStoreName = (searchParams.get("store_name") || "").trim();
 
   const [headerStoreCode, setHeaderStoreCode] = useState("");
   const [headerStoreName, setHeaderStoreName] = useState("");
 
-  // URL 값 우선 반영
+  // 1) URL 값 우선 반영
   useEffect(() => {
     if (currentStoreCode) setHeaderStoreCode(currentStoreCode);
     if (currentStoreName) setHeaderStoreName(currentStoreName);
   }, [currentStoreCode, currentStoreName]);
 
-  // URL이 없을 때 localStorage fallback
+  // 2) URL이 없을 때 localStorage fallback
   useEffect(() => {
     if (currentStoreCode || currentStoreName) return;
 
@@ -93,28 +112,38 @@ function DashboardPageInner() {
     } catch {}
   }, [currentStoreCode, currentStoreName]);
 
-  // ====== (B) Dashboard 필터/조회용 상태 ======
+  /** =========================
+   *  B) 상태 (필터/데이터)
+   * ========================= */
   const [summary, setSummary] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const [inputDate, setInputDate] = useState(ymdToday());
   const [region, setRegion] = useState("");
-  const [storeCode, setStoreCode] = useState(""); // 필터용 매장코드
+  const [storeCode, setStoreCode] = useState("");
   const [category, setCategory] = useState("");
 
-  // ✅ 실제 조회에 사용할 "effectiveStoreCode"
-  // - 필터(storeCode)가 있으면 그걸 사용
-  // - 없으면 Header에서 확정된 매장코드(= URL/LS)로 조회
+  // 실제 조회에 사용할 store_code (기존 로직 유지)
   const effectiveStoreCode = useMemo(() => {
     return (storeCode || headerStoreCode || "").trim();
   }, [storeCode, headerStoreCode]);
 
-  // 첫 진입 시: URL store_code가 있으면 필터 매장코드에도 기본 세팅
+  // 첫 진입 시 URL store_code가 있으면 필터에도 주입
   useEffect(() => {
     if (currentStoreCode) setStoreCode(currentStoreCode);
   }, [currentStoreCode]);
 
+  /** =========================
+   *  B-1) 성능 개선용 (취소/캐시/transition)
+   * ========================= */
+  const cacheRef = useRef(new Map()); // key -> {summary, items}
+  const abortRef = useRef(null); // AbortController
+  const [isPending, startTransition] = useTransition();
+
+  /** =========================
+   *  C) 스타일 (CSS)
+   * ========================= */
   const styles = `
     .page{min-height:100vh;background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);}
     .header{background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);padding:18px 28px;color:#fff;font-size:22px;font-weight:900;}
@@ -129,6 +158,7 @@ function DashboardPageInner() {
     .container{max-width:1400px;margin:30px auto;padding:0 20px;}
     .grid{display:grid;grid-template-columns:420px 1fr;gap:26px;align-items:start;}
     .leftCol{display:flex;flex-direction:column;gap:14px;}
+
     .kpiGrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
     .kpiCard{background:#fff;border-radius:14px;padding:22px;box-shadow:0 4px 16px rgba(0,0,0,.08);text-align:center;}
     .kpiTitle{font-size:14px;font-weight:800;color:#666;}
@@ -185,45 +215,100 @@ function DashboardPageInner() {
     }
   `;
 
-  // ====== (C) 데이터 Fetch (DB 조회) ======
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
+  /** =========================
+   *  D) 데이터 Fetch (취소+캐시+전환)
+   *  - 기능/쿼리 규칙은 기존 유지
+   * ========================= */
+  const fetchData = useCallback(async (next) => {
+    const { inputDate: d, region: r, category: c, effectiveStoreCode: sc } = next;
 
-        const qs = new URLSearchParams();
-        if (inputDate) qs.set("input_date", inputDate);
-        if (region) qs.set("region", region);
+    // 캐시 키
+    const key = JSON.stringify({
+      d: d || "",
+      r: r || "",
+      c: c || "",
+      sc: sc || "",
+    });
 
-        const qsItems = new URLSearchParams(qs.toString());
-        // ✅ 핵심: storeCode가 비어있어도 headerStoreCode로 조회되도록
-        if (effectiveStoreCode) qsItems.set("store_code", effectiveStoreCode);
-        if (category) qsItems.set("category", category);
+    // ✅ 캐시 hit: 즉시 반영
+    const cached = cacheRef.current.get(key);
+    if (cached) {
+      startTransition(() => {
+        setSummary(cached.summary);
+        setItems(cached.items);
+      });
+      return;
+    }
 
-        const [sRes, iRes] = await Promise.all([
-          fetch(`${API_BASE}/api/dashboard/summary?${qs.toString()}`, { cache: "no-store" }),
-          fetch(`${API_BASE}/api/dashboard/items?${qsItems.toString()}`, { cache: "no-store" }),
-        ]);
+    // ✅ 이전 요청 취소
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-        const sJson = await sRes.json().catch(() => ({}));
-        const iJson = await iRes.json().catch(() => ({}));
+    try {
+      setLoading(true);
 
-        setSummary(Array.isArray(sJson.rows) ? sJson.rows : []);
-        setItems(Array.isArray(iJson.rows) ? iJson.rows : []);
-      } catch (e) {
-        console.error("Dashboard fetch error:", e);
+      const qs = new URLSearchParams();
+      if (d) qs.set("input_date", d);
+      if (r) qs.set("region", r);
+
+      const qsItems = new URLSearchParams(qs.toString());
+
+      // ✅ 기존 규칙 유지: region이 있으면 store_code를 보내지 않음
+      if (!r && sc) qsItems.set("store_code", sc);
+
+      if (c) qsItems.set("category", c);
+
+      const [sRes, iRes] = await Promise.all([
+        fetch(`${API_BASE}/api/dashboard/summary?${qs.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        }),
+        fetch(`${API_BASE}/api/dashboard/items?${qsItems.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        }),
+      ]);
+
+      const sJson = await sRes.json().catch(() => ({}));
+      const iJson = await iRes.json().catch(() => ({}));
+
+      const nextSummary = Array.isArray(sJson.rows) ? sJson.rows : [];
+      const nextItems = Array.isArray(iJson.rows) ? iJson.rows : [];
+
+      // 캐시 저장
+      cacheRef.current.set(key, { summary: nextSummary, items: nextItems });
+
+      // 전환 업데이트
+      startTransition(() => {
+        setSummary(nextSummary);
+        setItems(nextItems);
+      });
+    } catch (e) {
+      if (e?.name === "AbortError") return; // 정상 케이스
+
+      console.error("Dashboard fetch error:", e);
+      startTransition(() => {
         setSummary([]);
         setItems([]);
-      } finally {
+      });
+    } finally {
+      // 마지막 요청만 로딩 종료
+      if (abortRef.current === controller) {
         setLoading(false);
+        abortRef.current = null;
       }
-    };
+    }
+  }, [startTransition]);
 
-    // ✅ headerStoreCode(LS fallback) 로딩 후에도 재조회 되게 의존성에 포함
-    fetchData();
-  }, [inputDate, region, category, effectiveStoreCode]);
+  // 필터 변화 시 조회
+  useEffect(() => {
+    fetchData({ inputDate, region, category, effectiveStoreCode });
+  }, [inputDate, region, category, effectiveStoreCode, fetchData]);
 
-  // ====== (D) 옵션 생성 ======
+  /** =========================
+   *  E) 필터 옵션 생성
+   * ========================= */
   const regionOptions = useMemo(() => {
     const set = new Set(summary.map((r) => r.region_name).filter(Boolean));
     return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "ko"));
@@ -247,33 +332,59 @@ function DashboardPageInner() {
     return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "ko"));
   }, [items]);
 
-  // ✅ 기존 로직 유지 + 단, URL/LS 매장코드가 있을 때는 지역 변경해도 "조회 매장"은 유지됨
-  useEffect(() => {
-    setStoreCode("");
-  }, [region]);
-
-  const kpi = useMemo(() => {
+  /** =========================
+   *  F) KPI (단계적 수정 구조)
+   *  - 1) 값 정의: kpiData
+   *  - 2) 화면 정의: KPI_DEFS
+   * ========================= */
+  const kpiData = useMemo(() => {
     const enteredStores = summary.filter((r) => r.is_entered === 1).length;
     const notEnteredStores = summary.filter((r) => r.is_entered === 0).length;
     const totalCnt = summary.length > 0 ? Number(summary[0]?.total_cnt ?? 0) : 0;
     const inputRows = items.length;
+
     return { enteredStores, notEnteredStores, totalCnt, inputRows };
   }, [summary, items]);
 
+  // ✅ KPI 표시 항목은 여기만 수정하면 됨
+  const KPI_DEFS = useMemo(
+    () => [
+      { key: "enteredStores", title: "입력매장수" },
+      { key: "notEnteredStores", title: "미입력매장수" },
+      { key: "totalCnt", title: "등록품목" },
+      { key: "inputRows", title: "조회된 입력건수" },
+    ],
+    []
+  );
+
+  /** =========================
+   *  G) 필터 초기화 (체감 개선: 즉시 fetch)
+   * ========================= */
   const onResetFilters = () => {
-    setInputDate(ymdToday());
-    setRegion("");
-    // ✅ 리셋 시: URL 있으면 URL로, 없으면 header(LS)로 유지
-    setStoreCode(currentStoreCode || headerStoreCode || "");
-    setCategory("");
+    const d = ymdToday();
+    const r = "";
+    const sc = currentStoreCode || headerStoreCode || "";
+    const c = "";
+
+    setInputDate(d);
+    setRegion(r);
+    setStoreCode(sc);
+    setCategory(c);
+
+    // ✅ 즉시 조회(체감속도)
+    fetchData({ inputDate: d, region: r, category: c, effectiveStoreCode: sc });
   };
 
   if (loading) return <div style={{ padding: 40 }}>로딩중...</div>;
 
+  /** =========================
+   *  I) 렌더링
+   * ========================= */
   return (
     <div className="page">
       <style dangerouslySetInnerHTML={{ __html: styles }} />
 
+      {/* Header */}
       <div className="header">
         <div className="headerInner">
           <div className="logo">KFC OPERATIONS - 유통기한 DASHBOARD</div>
@@ -295,21 +406,25 @@ function DashboardPageInner() {
 
             <div className="todayText">
               {ymdToday()} | {headerStoreCode || "-"} | {headerStoreName || "매장명 없음"}
+              {isPending ? " | 업데이트중..." : ""}
             </div>
           </div>
         </div>
       </div>
 
+      {/* Body */}
       <div className="container">
         <div className="grid">
+          {/* Left */}
           <div className="leftCol">
+            {/* KPI */}
             <div className="kpiGrid">
-              <Kpi title="입력매장수" value={kpi.enteredStores} />
-              <Kpi title="미입력매장수" value={kpi.notEnteredStores} />
-              <Kpi title="등록품목" value={kpi.totalCnt} />
-              <Kpi title="조회된 입력건수" value={kpi.inputRows} />
+              {KPI_DEFS.map((k) => (
+                <Kpi key={k.key} title={k.title} value={kpiData[k.key]} />
+              ))}
             </div>
 
+            {/* Filters */}
             <div className="filterBox">
               <div className="filterTitle">필터</div>
 
@@ -326,7 +441,15 @@ function DashboardPageInner() {
 
                 <div className="row">
                   <div className="rowLabel">지역</div>
-                  <select className="control" value={region} onChange={(e) => setRegion(e.target.value)}>
+                  <select
+                    className="control"
+                    value={region}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRegion(v);
+                      setStoreCode(""); // 지역 바꿀 때 매장 필터 초기화(기존 유지)
+                    }}
+                  >
                     <option value="">전체</option>
                     {regionOptions.map((r) => (
                       <option key={r} value={r}>
@@ -338,7 +461,11 @@ function DashboardPageInner() {
 
                 <div className="row">
                   <div className="rowLabel">매장</div>
-                  <select className="control" value={storeCode} onChange={(e) => setStoreCode(e.target.value)}>
+                  <select
+                    className="control"
+                    value={storeCode}
+                    onChange={(e) => setStoreCode(e.target.value)}
+                  >
                     <option value="">전체</option>
                     {storeOptions.map((s) => (
                       <option key={s.store_code} value={s.store_code}>
@@ -350,7 +477,11 @@ function DashboardPageInner() {
 
                 <div className="row">
                   <div className="rowLabel">카테고리</div>
-                  <select className="control" value={category} onChange={(e) => setCategory(e.target.value)}>
+                  <select
+                    className="control"
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                  >
                     <option value="">전체</option>
                     {categoryOptions.map((c) => (
                       <option key={c} value={c}>
@@ -369,6 +500,7 @@ function DashboardPageInner() {
             </div>
           </div>
 
+          {/* Right */}
           <div className="panel">
             <div className="panelTitle">📋 자재별 유통기한 현황 (선택 날짜 기준 정렬)</div>
 
@@ -382,6 +514,7 @@ function DashboardPageInner() {
                   <th>남은일수</th>
                 </tr>
               </thead>
+
               <tbody>
                 {items.map((r, idx) => {
                   const remain = Number.isFinite(Number(r.remaining_days_by_filter))
@@ -420,6 +553,9 @@ function DashboardPageInner() {
   );
 }
 
+/** =========================
+ *  3) KPI 컴포넌트
+ * ========================= */
 function Kpi({ title, value }) {
   const safe = Number.isFinite(Number(value)) ? value : 0;
   return (
