@@ -310,73 +310,392 @@ function PageClient() {
   /* ---------------------------
    *  스타일 (문자열 CSS)
    * --------------------------- */
-  const styles = useMemo(
-    () => `
-*{margin:0;padding:0;box-sizing:border-box;font-family:"Pretendard",system-ui,-apple-system,BlinkMacSystemFont;}
-body{background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);min-height:100vh;}
-.header{background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);padding:20px 0;box-shadow:0 4px 12px rgba(163,8,11,.3);}
-.header-content{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:0 30px;gap:12px;}
-.logo{font-size:32px;font-weight:900;color:#fff;letter-spacing:2px;text-shadow:2px 2px 4px rgba(0,0,0,.3);}
-.user-info{color:#FFF1E2;font-size:18px;font-weight:900;white-space:nowrap;}
-.container{max-width:1200px;margin:40px auto;padding:0 20px;}
-.login-box,.main-content{background:#fff;border-radius:15px;box-shadow:0 8px 32px rgba(0,0,0,.1);padding:40px;margin-bottom:30px;}
-.login-box{max-width:450px;margin:100px auto;}
-.login-title{text-align:center;color:#A3080B;font-size:28px;font-weight:900;margin-bottom:10px;}
-.login-subtitle{text-align:center;color:#666;margin-bottom:30px;}
-.form-group{margin-bottom:20px}
-.form-label{display:block;color:#333;font-weight:700;margin-bottom:8px;font-size:14px;}
-.form-input{width:100%;padding:14px 18px;border:2px solid #E0E0E0;border-radius:8px;font-size:15px;transition:all .3s;background:#fff;}
-.form-input:focus{outline:none;border-color:#A3080B;box-shadow:0 0 0 3px rgba(163,8,11,.1);}
-.btn-primary{width:100%;padding:16px;margin-top:10px;background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:800;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px;}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(163,8,11,.35);}
-.btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none;}
-.category-section{background:#FFF1E2;border-left:5px solid #A3080B;padding:25px;margin-bottom:25px;border-radius:10px;}
-.category-title{color:#A3080B;font-size:22px;font-weight:900;margin-bottom:20px;display:flex;align-items:center;}
-.category-icon{width:30px;height:30px;background:#A3080B;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:12px;flex:0 0 30px;}
-.item-row{background:#fff;padding:20px;margin-bottom:12px;border-radius:12px;display:grid;grid-template-columns:2fr 3fr 1.5fr;gap:20px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.05);}
-.item-name{font-weight:800;color:#333;}
-.date-btn{width:100%;padding:14px 14px;border:2px solid #E0E0E0;border-radius:10px;background:#FAFAFA;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:15px;}
-.date-btn:active{transform:scale(.995);}
-.date-btn .hint{color:#666;font-weight:800;}
-.date-btn .value{color:#111;font-weight:900;}
-.status-badge{padding:8px 12px;border-radius:20px;font-size:12px;font-weight:900;text-align:center;text-transform:uppercase;letter-spacing:.5px;}
-.status-ok{background:#4CAF50;color:#fff}
-.status-warning{background:#FFC107;color:#333}
-.status-danger{background:#F44336;color:#fff}
-.save-section{position:sticky;bottom:20px;background:#fff;padding:20px;border-radius:12px;box-shadow:0 -4px 20px rgba(0,0,0,.1);text-align:center;}
-.alert{padding:12px 16px;border-radius:8px;margin-bottom:20px;font-weight:700;}
-.alert-error{background:#FFEBEE;color:#C62828;}
-.alert-success{background:#E8F5E9;color:#2E7D32;}
-.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;padding:16px;z-index:9999;}
-.modal{width:100%;max-width:520px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.25);}
-.modal-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:#FFF1E2;border-bottom:1px solid #f0e0d1;}
-.modal-title{font-weight:900;color:#A3080B;}
-.modal-close{border:none;background:transparent;font-size:22px;cursor:pointer;font-weight:900;color:#A3080B;}
-.modal-body{padding:16px;}
-.quick-actions{display:flex;gap:10px;margin-bottom:12px;}
-.quick-actions button{flex:1;padding:12px 10px;border-radius:10px;border:2px solid #E0E0E0;background:#fff;font-weight:900;cursor:pointer;}
-.quick-actions button:hover{border-color:#A3080B;}
-.modal-footer{padding:14px 16px;border-top:1px solid #f2f2f2;display:flex;gap:10px;}
-.btn-secondary{flex:1;padding:14px 12px;border-radius:10px;border:2px solid #E0E0E0;background:#fff;font-weight:900;cursor:pointer;}
-.btn-confirm{flex:2;padding:14px 12px;border-radius:10px;border:none;background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);color:#fff;font-weight:900;cursor:pointer;}
-@media (max-width:768px){
-  .header-content{padding:0 16px}
-  .logo{font-size:15px;letter-spacing:.5px}
-  .user-info{font-size:11px}
-  .login-box{margin:60px auto;padding:24px}
-  .main-content{padding:20px}
-  .category-title{font-size:16px}
-  .item-row{grid-template-columns:1fr;gap:10px;padding:16px;}
-  .item-name{font-size:14px;line-height:1.25;}
-  .date-btn{font-size:13px;padding:16px 14px;border-radius:12px;}
-  .status-badge{font-size:11px;padding:6px 10px;justify-self:start;width:fit-content;}
-  .modal-title{font-size:15px;}
-  .quick-actions button{font-size:13px;padding:10px 6px;}
-  .category-section{padding:16px;}
-}
-`,
-    []
-  );
+    const styles = useMemo(
+      () => `
+    /* =========================
+      0) 기본 Reset / Body
+      ========================= */
+    *{
+      margin:0;
+      padding:0;
+      box-sizing:border-box;
+      font-family:"Pretendard", system-ui, -apple-system, BlinkMacSystemFont;
+    }
+    body{
+      background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);
+      min-height:100vh;
+    }
+
+    /* =========================
+      1) Header
+      ========================= */
+    .header{
+      background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
+      padding:20px 0;
+      box-shadow:0 4px 12px rgba(163,8,11,.3);
+    }
+    .header-content{
+      max-width:1200px;
+      margin:0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 30px;
+      gap:12px;
+    }
+    .logo{
+      font-size:32px;
+      font-weight:900;
+      color:#fff;
+      letter-spacing:2px;
+      text-shadow:2px 2px 4px rgba(0,0,0,.3);
+    }
+    .user-info{
+      color:#FFF1E2;
+      font-size:18px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
+    /* =========================
+      2) Layout Container / Box
+      ========================= */
+    .container{
+      max-width:1200px;
+      margin:40px auto;
+      padding:0 20px;
+    }
+    .login-box,
+    .main-content{
+      background:#fff;
+      border-radius:15px;
+      box-shadow:0 8px 32px rgba(0,0,0,.1);
+      padding:40px;
+      margin-bottom:30px;
+    }
+    .login-box{
+      max-width:450px;
+      margin:100px auto;
+    }
+
+    /* =========================
+      3) Login Text
+      ========================= */
+    .login-title{
+      text-align:center;
+      color:#A3080B;
+      font-size:28px;
+      font-weight:900;
+      margin-bottom:10px;
+    }
+    .login-subtitle{
+      text-align:center;
+      color:#666;
+      margin-bottom:30px;
+    }
+
+    /* =========================
+      4) Form / Inputs
+      ========================= */
+    .form-group{ margin-bottom:20px; }
+    .form-label{
+      display:block;
+      color:#333;
+      font-weight:700;
+      margin-bottom:8px;
+      font-size:14px;
+    }
+    .form-input{
+      width:100%;
+      padding:14px 18px;
+      border:2px solid #E0E0E0;
+      border-radius:8px;
+      font-size:15px;
+      transition:all .3s;
+      background:#fff;
+    }
+    .form-input:focus{
+      outline:none;
+      border-color:#A3080B;
+      box-shadow:0 0 0 3px rgba(163,8,11,.1);
+    }
+
+    /* =========================
+      5) Buttons
+      ========================= */
+    /* 기본 빨간 버튼 (저장/결과조회/시작하기 등) */
+    .btn-primary{
+      width:100%;
+      padding:16px;
+      margin-top:10px;
+      background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
+      color:#fff;
+      border:none;
+      border-radius:8px;
+      font-size:16px;
+      font-weight:800;
+      cursor:pointer;
+      transition:all .2s;
+      text-transform:uppercase;
+      letter-spacing:1px;
+    }
+    .btn-primary:hover{
+      transform:translateY(-2px);
+      box-shadow:0 6px 20px rgba(163,8,11,.35);
+    }
+    .btn-primary:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+      transform:none;
+      box-shadow:none;
+    }
+
+    /* 로그아웃 버튼 (노란색) */
+    .btn-logout{
+      height:36px;
+      padding:0 14px;
+      border:none;
+      border-radius:10px;
+      background:#FFD400;
+      color:#111;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow:0 3px 10px rgba(0,0,0,.12);
+    }
+    .btn-logout:hover{ filter:brightness(.95); }
+    .btn-logout:active{ transform:translateY(1px); }
+
+    /* =========================
+      6) Category / Items
+      ========================= */
+    .category-section{
+      background:#FFF1E2;
+      border-left:5px solid #A3080B;
+      padding:25px;
+      margin-bottom:25px;
+      border-radius:10px;
+    }
+    .category-title{
+      color:#A3080B;
+      font-size:22px;
+      font-weight:900;
+      margin-bottom:20px;
+      display:flex;
+      align-items:center;
+    }
+    .category-icon{
+      width:30px;
+      height:30px;
+      background:#A3080B;
+      color:#fff;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin-right:12px;
+      flex:0 0 30px;
+    }
+    .item-row{
+      background:#fff;
+      padding:20px;
+      margin-bottom:12px;
+      border-radius:12px;
+      display:grid;
+      grid-template-columns:2fr 3fr 1.5fr;
+      gap:20px;
+      align-items:center;
+      box-shadow:0 2px 8px rgba(0,0,0,.05);
+    }
+    .item-name{
+      font-weight:800;
+      color:#333;
+    }
+    .date-btn{
+      width:100%;
+      padding:14px 14px;
+      border:2px solid #E0E0E0;
+      border-radius:10px;
+      background:#FAFAFA;
+      font-weight:800;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      font-size:15px;
+    }
+    .date-btn:active{ transform:scale(.995); }
+    .date-btn .hint{ color:#666; font-weight:800; }
+    .date-btn .value{ color:#111; font-weight:900; }
+
+    /* =========================
+      7) Status Badge
+      ========================= */
+    .status-badge{
+      padding:8px 12px;
+      border-radius:20px;
+      font-size:12px;
+      font-weight:900;
+      text-align:center;
+      text-transform:uppercase;
+      letter-spacing:.5px;
+    }
+    .status-ok{ background:#4CAF50; color:#fff; }
+    .status-warning{ background:#FFC107; color:#333; }
+    .status-danger{ background:#F44336; color:#fff; }
+
+    /* =========================
+      8) Save Area (Bottom Sticky)
+      ========================= */
+    .save-section{
+      position:sticky;
+      bottom:20px;
+      background:#fff;
+      padding:20px;
+      border-radius:12px;
+      box-shadow:0 -4px 20px rgba(0,0,0,.1);
+      text-align:center;
+    }
+
+    /* =========================
+      9) Alerts
+      ========================= */
+    .alert{
+      padding:12px 16px;
+      border-radius:8px;
+      margin-bottom:20px;
+      font-weight:700;
+    }
+    .alert-error{ background:#FFEBEE; color:#C62828; }
+    .alert-success{ background:#E8F5E9; color:#2E7D32; }
+
+    /* =========================
+      10) Modal
+      ========================= */
+    .modal-backdrop{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.55);
+      display:flex;
+      align-items:flex-end;
+      justify-content:center;
+      padding:16px;
+      z-index:9999;
+    }
+    .modal{
+      width:100%;
+      max-width:520px;
+      background:#fff;
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow:0 12px 40px rgba(0,0,0,.25);
+    }
+    .modal-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px 16px;
+      background:#FFF1E2;
+      border-bottom:1px solid #f0e0d1;
+    }
+    .modal-title{
+      font-weight:900;
+      color:#A3080B;
+    }
+    .modal-close{
+      border:none;
+      background:transparent;
+      font-size:22px;
+      cursor:pointer;
+      font-weight:900;
+      color:#A3080B;
+    }
+    .modal-body{ padding:16px; }
+    .quick-actions{
+      display:flex;
+      gap:10px;
+      margin-bottom:12px;
+    }
+    .quick-actions button{
+      flex:1;
+      padding:12px 10px;
+      border-radius:10px;
+      border:2px solid #E0E0E0;
+      background:#fff;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .quick-actions button:hover{ border-color:#A3080B; }
+    .modal-footer{
+      padding:14px 16px;
+      border-top:1px solid #f2f2f2;
+      display:flex;
+      gap:10px;
+    }
+    .btn-secondary{
+      flex:1;
+      padding:14px 12px;
+      border-radius:10px;
+      border:2px solid #E0E0E0;
+      background:#fff;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .btn-confirm{
+      flex:2;
+      padding:14px 12px;
+      border-radius:10px;
+      border:none;
+      background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
+      color:#fff;
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    /* =========================
+      11) Responsive (Tablet)
+      ========================= */
+    @media (max-width:768px){
+      .header-content{ padding:0 16px; }
+      .logo{ font-size:15px; letter-spacing:.5px; }
+      .user-info{ font-size:11px; }
+
+      .login-box{ margin:60px auto; padding:24px; }
+      .main-content{ padding:20px; }
+
+      .category-title{ font-size:16px; }
+      .category-section{ padding:16px; }
+
+      .item-row{ grid-template-columns:1fr; gap:10px; padding:16px; }
+      .item-name{ font-size:14px; line-height:1.25; }
+
+      .date-btn{ font-size:13px; padding:16px 14px; border-radius:12px; }
+
+      .status-badge{
+        font-size:11px;
+        padding:6px 10px;
+        justify-self:start;
+        width:fit-content;
+      }
+
+      .modal-title{ font-size:15px; }
+      .quick-actions button{ font-size:13px; padding:10px 6px; }
+    }
+
+    /* =========================
+      12) Responsive (Mobile: Logout Button)
+      ========================= */
+    @media (max-width:560px){
+      .btn-logout{
+        height:28px;
+        padding:0 10px;
+        font-size:12px;
+        border-radius:8px;
+      }
+    }
+    `,
+      []
+    );
 
   const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
 
@@ -672,75 +991,75 @@ body{background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);min-height:100vh
     closePicker();
   }, [activeKey, draftDate, closePicker]);
 
-  /* =========================================================
-   *  저장(서버 bulk 저장)
-   * ========================================================= */
-  const onSave = useCallback(async () => {
-    try {
-      setError("");
-      setSuccess("");
+    /* =========================================================
+    *  저장(서버 bulk 저장)
+    * ========================================================= */
+    const onSave = useCallback(async () => {
+      try {
+        setError("");
+        setSuccess("");
 
-      const store_code = storeCode.trim();
-      if (!store_code) {
-        setError("매장코드가 없습니다.");
-        return;
+        const store_code = storeCode.trim();
+        if (!store_code) {
+          setError("매장코드가 없습니다.");
+          return;
+        }
+
+        const rawEntries = Object.entries(dates)
+          .filter(([_, v]) => Boolean(v))
+          .map(([k, v]) => {
+            const key = String(k);
+            const sep = key.indexOf("__");
+            if (sep < 0) return null;
+
+            const category = key.slice(0, sep).trim();
+            const item_name = key.slice(sep + 2).trim();
+            const expiry_date = String(v).slice(0, 10);
+
+            if (!category || !item_name || !expiry_date) return null;
+            return { category, item_name, expiry_date };
+          })
+          .filter(Boolean);
+
+        if (rawEntries.length === 0) {
+          setError("저장할 항목이 없습니다. 유효기간을 먼저 입력해주세요.");
+          return;
+        }
+
+        // item_name 기준 dedupe
+        const uniqMap = new Map();
+        for (const e of rawEntries) {
+          const dedupeKey = `${e.item_name}`;
+          uniqMap.set(dedupeKey, e);
+        }
+        const entries = Array.from(uniqMap.values());
+
+        setSaving(true);
+        const res = await fetch(`${API_BASE}/api/expiry-entries/bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            store_code,
+            input_date: todayText,
+            entries,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok) {
+          setError(data?.error || "저장에 실패했습니다.");
+          return;
+        }
+
+        setSuccess(`저장 완료 (${data.count}건)`);
+        setTimeout(() => setSuccess(""), 1500);
+      } catch (e) {
+        setError(e?.message || "저장 중 오류가 발생했습니다.");
+      } finally {
+        setSaving(false);
       }
-
-      const rawEntries = Object.entries(dates)
-        .filter(([_, v]) => Boolean(v))
-        .map(([k, v]) => {
-          const key = String(k);
-          const sep = key.indexOf("__");
-          if (sep < 0) return null;
-
-          const category = key.slice(0, sep).trim();
-          const item_name = key.slice(sep + 2).trim();
-          const expiry_date = String(v).slice(0, 10);
-
-          if (!category || !item_name || !expiry_date) return null;
-          return { category, item_name, expiry_date };
-        })
-        .filter(Boolean);
-
-      if (rawEntries.length === 0) {
-        setError("저장할 항목이 없습니다. 유효기간을 먼저 입력해주세요.");
-        return;
-      }
-
-      // item_name 기준 dedupe
-      const uniqMap = new Map();
-      for (const e of rawEntries) {
-        const dedupeKey = `${e.item_name}`;
-        uniqMap.set(dedupeKey, e);
-      }
-      const entries = Array.from(uniqMap.values());
-
-      setSaving(true);
-      const res = await fetch(`${API_BASE}/api/expiry-entries/bulk`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          store_code,
-          input_date: todayText,
-          entries,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok || !data.ok) {
-        setError(data?.error || "저장에 실패했습니다.");
-        return;
-      }
-
-      setSuccess(`저장 완료 (${data.count}건)`);
-      setTimeout(() => setSuccess(""), 1500);
-    } catch (e) {
-      setError(e?.message || "저장 중 오류가 발생했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  }, [dates, storeCode, todayText]);
+    }, [dates, storeCode, todayText]);
 
   /* =========================================================
    *  Render
@@ -753,8 +1072,34 @@ body{background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);min-height:100vh
       <div className="header">
         <div className="header-content">
           <div className="logo">KFC OPERATIONS - 자재유통기한 관리</div>
-          <div className="user-info">
-            {loggedIn ? `${todayText} | ${storeCode.trim()} | ${storeName.trim()}` : ""}
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="user-info">
+              {loggedIn
+                ? `${todayText} | ${storeCode.trim()} | ${storeName.trim()}`
+                : ""}
+            </div>
+
+            {loggedIn && (
+              <button
+                type="button"
+                className="btn-logout"
+                onClick={() => {
+                  // 1) 로그인 정보 삭제
+                  localStorage.removeItem("kfc_store_info");
+
+                  // 2) 로그인 상태 초기화
+                  setLoggedIn(false);
+                  setStoreCode("");
+                  setStoreName("");
+
+                  // 3) 최초 화면으로 이동 (URL 파라미터 제거)
+                  router.replace("/");
+                }}
+              >
+                로그아웃
+              </button>
+            )}
           </div>
         </div>
       </div>
