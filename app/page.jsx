@@ -346,8 +346,9 @@ function PageClient() {
     /* ✅ 헤더 우측: 가로 + 줄바꿈 없음 */
     .header-right{
       display:flex;
-      align-items:center;
-      gap:12px;
+      flex-direction:column;  /* ✅ 가로 배치 깨짐 방지(모바일 안정화 핵심) */
+      align-items:flex-end;
+      gap:8px;
       white-space:nowrap;
     }
     .user-info{
@@ -361,18 +362,17 @@ function PageClient() {
     }
 
     .btn-logout{
-      height:36px;
-      padding:0 14px;
-      border:none;
+      width:72px;        /* ✅ 64 → 72 */
+      min-width:72px;    /* ✅ 0 → 72 (이탈 방지) */
+      height:32px;       /* ✅ 36 → 32 (헤더 높이 안정화) */
+      padding:0;
+      font-size:11px;
       border-radius:10px;
-      background:#FFD400;
-      color:#111;
-      font-weight:900;
-      cursor:pointer;
-      box-shadow:0 3px 10px rgba(0,0,0,.12);
+      display:flex;
+      align-items:center;
+      justify-content:center;
       white-space:nowrap;
       word-break:keep-all;
-      min-width:72px;
     }
     .btn-logout:hover{ filter:brightness(.95); }
     .btn-logout:active{ transform:translateY(1px); }
@@ -670,7 +670,7 @@ function PageClient() {
       .logo{
         white-space:normal;
         line-height:1.05;
-        max-width:54vw;
+        max-width:68vw;   /* ✅ 54vw → 68vw (좌측 타이틀 공간 확보) */
         letter-spacing:1px;
       }
       .logo-line{ display:block; }
@@ -738,6 +738,8 @@ function PageClient() {
         letter-spacing:.5px;
       }
       .save-section{ padding:14px; bottom:12px; }
+            /* ✅ sticky 버튼에 가려지지 않도록 하단 여백 확보 */
+      .main-content{ padding-bottom:110px; }
     }
   `,
     []
@@ -1131,7 +1133,7 @@ function PageClient() {
             <div className="user-info">
               {loggedIn ? (
                 <span>
-                  {todayText} {storeCode.trim()} {storeName.trim()}
+                  {todayText} | {storeCode.trim()} | {storeName.trim()}
                 </span>
               ) : (
                 ""

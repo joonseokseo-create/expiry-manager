@@ -122,6 +122,13 @@ function DashboardPageInner() {
    *    - 저장/입력 버튼 세로(작게)
    * --------------------------------------------------------- */
   const styles = `
+    /* ✅ 전역: Pretendard Medium */
+    *{
+      font-family:"Pretendard", system-ui, -apple-system, BlinkMacSystemFont;
+      font-weight:500;
+      box-sizing:border-box;
+    }
+
     .page{min-height:100vh;background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);}
 
     /* Header */
@@ -129,8 +136,13 @@ function DashboardPageInner() {
       background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
       padding:14px 20px;
       color:#fff;
+      font-weight:900; /* ✅ 헤더: Pretendard Black */
+    }
+    /* ✅ 헤더 내부 전부 Black 강제 */
+    .header, .header *{
       font-weight:900;
     }
+
     .headerInner{
       display:flex;
       justify-content:space-between;
@@ -275,7 +287,7 @@ function DashboardPageInner() {
     @media (max-width:980px){
       .grid{grid-template-columns:1fr;}
       .header{padding:12px 16px;}
-      .logo{font-size:22x;white-space:normal;}
+      .logo{font-size:22px;white-space:normal;} /* ✅ 22x 오타 수정 */
       .container{margin:16px auto;}
       .panel{max-height:none;}
     }
@@ -364,16 +376,21 @@ function DashboardPageInner() {
         display:none;
       }
 
-      /* ✅ (이미 적용 완료라고 했던) 모바일 전용 열 숨김: 매장코드(1번째) 숨김 */
+      /* ✅ 모바일 전용: 매장코드(1번째) 숨김 */
       table th:nth-child(1),
       table td:nth-child(1){
         display:none;
       }
 
-      th:nth-child(2),td:nth-child(2){width:30%;}
-      th:nth-child(3),td:nth-child(3){width:18%;}
-      th:nth-child(4),td:nth-child(4){width:32%;}
-      th:nth-child(5),td:nth-child(5){width:20%;}
+      /* ✅ 모바일 전용: 카테고리(3번째) 숨김 */
+      table th:nth-child(3),
+      table td:nth-child(3){
+        display:none;
+      }
+
+      th:nth-child(2),td:nth-child(2){width:36%;}
+      th:nth-child(4),td:nth-child(4){width:38%;}
+      th:nth-child(5),td:nth-child(5){width:26%;}
     }
   `;
 
