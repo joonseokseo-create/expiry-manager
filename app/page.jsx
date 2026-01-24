@@ -304,67 +304,404 @@ function PageClient() {
    *   - 우측 메타는 "날짜 공백 코드 공백 매장명" (모바일도 줄바꿈 안함)
    * --------------------------- */
   const styles = useMemo(
-    () => `
-    *{
-      margin:0;
-      padding:0;
-      box-sizing:border-box;
-      font-family:"Pretendard", system-ui, -apple-system, BlinkMacSystemFont;
-    }
-    body{
-      background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);
-      min-height:100vh;
-    }
+  () => `
+  *{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:"Pretendard", system-ui, -apple-system, BlinkMacSystemFont;
+    font-weight:500; /* ✅ 기본: Pretendard Medium */
+  }
+  body{
+    background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);
+    min-height:100vh;
+  }
 
-    .header{
-      background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
-      padding:20px 0;
-      box-shadow:0 4px 12px rgba(163,8,11,.3);
-    }
+  /* ✅ 헤더 계열만 Pretendard Black */
+  .header,
+  .logo,
+  .user-info,
+  .btn-logout{
+    font-weight:900;
+  }
+
+  .header{
+    background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
+    padding:20px 0;
+    box-shadow:0 4px 12px rgba(163,8,11,.3);
+  }
+  .header-content{
+    max-width:1200px;
+    margin:0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:0 30px;
+    gap:12px;
+  }
+
+  /* ✅ 로고: 폰트 20% 축소 (32 -> 26) */
+  .logo{
+    font-size:26px;
+    color:#fff;
+    letter-spacing:2px;
+    text-shadow:2px 2px 4px rgba(0,0,0,.3);
+    white-space:nowrap;
+    line-height:1.05;
+  }
+  .logo-line{ display:inline; }
+
+  /* ✅ 헤더 우측: PC 기본은 가로 */
+  .header-right{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    white-space:nowrap;
+    flex:0 0 auto;
+  }
+  .user-info{
+    color:#FFF1E2;
+    font-size:18px;
+    white-space:nowrap;
+    word-break:keep-all;
+    text-align:right;
+    line-height:1.2;
+  }
+
+  .btn-logout{
+    height:32px;
+    padding:0 12px;
+    border:none;
+    border-radius:10px;
+    background:#FFD400;
+    color:#111;
+    cursor:pointer;
+    box-shadow:0 3px 10px rgba(0,0,0,.12);
+    white-space:nowrap;
+    word-break:keep-all;
+    min-width:72px;
+  }
+  .btn-logout:hover{ filter:brightness(.95); }
+  .btn-logout:active{ transform:translateY(1px); }
+
+  .container{
+    max-width:1200px;
+    margin:40px auto;
+    padding:0 20px;
+  }
+  .login-box,
+  .main-content{
+    background:#fff;
+    border-radius:15px;
+    box-shadow:0 8px 32px rgba(0,0,0,.1);
+    padding:40px;
+    margin-bottom:30px;
+  }
+  .login-box{
+    max-width:450px;
+    margin:100px auto;
+  }
+
+  .login-title{
+    text-align:center;
+    color:#A3080B;
+    font-size:28px;
+    font-weight:900;
+    margin-bottom:10px;
+  }
+  .login-subtitle{
+    text-align:center;
+    color:#666;
+    margin-bottom:30px;
+  }
+
+  .form-group{ margin-bottom:20px; }
+  .form-label{
+    display:block;
+    color:#333;
+    font-weight:700;
+    margin-bottom:8px;
+    font-size:14px;
+  }
+  .form-input{
+    width:100%;
+    padding:14px 18px;
+    border:2px solid #E0E0E0;
+    border-radius:8px;
+    font-size:15px;
+    transition:all .3s;
+    background:#fff;
+  }
+  .form-input:focus{
+    outline:none;
+    border-color:#A3080B;
+    box-shadow:0 0 0 3px rgba(163,8,11,.1);
+  }
+
+  .btn-primary{
+    width:100%;
+    padding:16px;
+    margin-top:10px;
+    background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    font-size:16px;
+    font-weight:800;
+    cursor:pointer;
+    transition:all .2s;
+    text-transform:uppercase;
+    letter-spacing:1px;
+  }
+  .btn-primary:hover{
+    transform:translateY(-2px);
+    box-shadow:0 6px 20px rgba(163,8,11,.35);
+  }
+  .btn-primary:disabled{
+    opacity:.6;
+    cursor:not-allowed;
+    transform:none;
+    box-shadow:none;
+  }
+
+  .category-section{
+    background:#FFF1E2;
+    border-left:5px solid #A3080B;
+    padding:25px;
+    margin-bottom:25px;
+    border-radius:10px;
+  }
+  .category-title{
+    color:#A3080B;
+    font-size:22px;
+    font-weight:900;
+    margin-bottom:20px;
+    display:flex;
+    align-items:center;
+  }
+  .category-icon{
+    width:30px;
+    height:30px;
+    background:#A3080B;
+    color:#fff;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    margin-right:12px;
+    flex:0 0 30px;
+  }
+  .item-row{
+    background:#fff;
+    padding:20px;
+    margin-bottom:12px;
+    border-radius:12px;
+    display:grid;
+    grid-template-columns:2fr 3fr 1.5fr;
+    gap:20px;
+    align-items:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.05);
+  }
+  .item-name{
+    font-weight:800;
+    color:#333;
+  }
+  .date-btn{
+    width:100%;
+    padding:14px 14px;
+    border:2px solid #E0E0E0;
+    border-radius:10px;
+    background:#FAFAFA;
+    font-weight:800;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-size:15px;
+  }
+  .date-btn:active{ transform:scale(.995); }
+  .date-btn .hint{ color:#666; font-weight:800; }
+  .date-btn .value{ color:#111; font-weight:900; }
+
+  .status-badge{
+    padding:8px 12px;
+    border-radius:20px;
+    font-size:12px;
+    font-weight:900;
+    text-align:center;
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    width:fit-content;
+  }
+  .status-ok{ background:#4CAF50; color:#fff; }
+  .status-warning{ background:#FFC107; color:#333; }
+  .status-danger{ background:#F44336; color:#fff; }
+
+  .save-section{
+    position:sticky;
+    bottom:20px;
+    background:#fff;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0 -4px 20px rgba(0,0,0,.1);
+    text-align:center;
+  }
+
+  .alert{
+    padding:12px 16px;
+    border-radius:8px;
+    margin-bottom:20px;
+    font-weight:700;
+  }
+  .alert-error{ background:#FFEBEE; color:#C62828; }
+  .alert-success{ background:#E8F5E9; color:#2E7D32; }
+
+  .modal-backdrop{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.55);
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    padding:16px;
+    z-index:9999;
+  }
+  .modal{
+    width:100%;
+    max-width:520px;
+    background:#fff;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 12px 40px rgba(0,0,0,.25);
+  }
+  .modal-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 16px;
+    background:#FFF1E2;
+    border-bottom:1px solid #f0e0d1;
+  }
+  .modal-title{
+    font-weight:900;
+    color:#A3080B;
+  }
+  .modal-close{
+    border:none;
+    background:transparent;
+    font-size:22px;
+    cursor:pointer;
+    font-weight:900;
+    color:#A3080B;
+  }
+  .modal-body{ padding:16px; }
+  .quick-actions{
+    display:flex;
+    gap:10px;
+    margin-bottom:12px;
+  }
+  .quick-actions button{
+    flex:1;
+    padding:12px 10px;
+    border-radius:10px;
+    border:2px solid #E0E0E0;
+    background:#fff;
+    font-weight:900;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .quick-actions button:hover{ border-color:#A3080B; }
+  .modal-footer{
+    padding:14px 16px;
+    border-top:1px solid #f2f2f2;
+    display:flex;
+    gap:10px;
+  }
+  .btn-secondary{
+    flex:1;
+    padding:14px 12px;
+    border-radius:10px;
+    border:2px solid #E0E0E0;
+    background:#fff;
+    font-weight:900;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .btn-confirm{
+    flex:2;
+    padding:14px 12px;
+    border-radius:10px;
+    border:none;
+    background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
+    color:#fff;
+    font-weight:900;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+
+  @media (max-width:768px){
+    .header-content{ padding:0 16px; }
+    .user-info{ font-size:11px; }
+
+    .login-box{ margin:60px auto; padding:24px; }
+    .main-content{ padding:20px; }
+
+    .category-title{ font-size:16px; }
+    .category-section{ padding:16px; }
+
+    .item-row{ grid-template-columns:1fr; gap:10px; padding:16px; }
+    .item-name{ font-size:14px; line-height:1.25; }
+
+    .date-btn{ font-size:13px; padding:16px 14px; border-radius:12px; }
+
+    .status-badge{ font-size:11px; padding:6px 10px; }
+
+    .modal-title{ font-size:15px; }
+    .quick-actions button{ font-size:13px; padding:10px 6px; }
+  }
+
+  /* ✅ Mobile (<=560px) */
+  @media (max-width:560px){
+    /* ✅ 좌우 여백 축소: 전체를 왼쪽으로 당기는 효과 */
+    .header{ padding:12px 0; }
     .header-content{
-      max-width:1200px;
-      margin:0 auto;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:0 30px;
-      gap:12px;
+      padding:0 10px;          /* ✅ 14 -> 10 */
+      align-items:flex-start;
+      gap:8px;                 /* ✅ 10 -> 8 */
     }
 
-    /* ✅ 로고: 기본(PC/태블릿) 한줄 */
+    /* ✅ 로고: 2줄 + 공간 60vw 확보 */
     .logo{
-      font-size:32px;              /* ✅ 폰트 크기 고정 */
-      font-weight:900;
-      color:#fff;
-      letter-spacing:2px;
-      text-shadow:2px 2px 4px rgba(0,0,0,.3);
-      white-space:nowrap;
+      white-space:normal;
       line-height:1.05;
+      max-width:60vw;          /* ✅ 좌측 고정 폭 */
+      letter-spacing:1px;
+      text-align:left;
     }
-    .logo-line{ display:inline; }
+    .logo-line{ display:block; }
 
-    /* ✅ 헤더 우측: 가로 + 줄바꿈 없음 */
+    /* ✅ 우측 영역: 40vw 고정 + 이탈 방지 */
     .header-right{
-      display:flex;
-      flex-direction:column;  /* ✅ 가로 배치 깨짐 방지(모바일 안정화 핵심) */
-      align-items:flex-end;
-      gap:8px;
+      max-width:40vw;          /* ✅ 우측 폭 제한 */
+      gap:6px;
+      justify-content:flex-start;
+    }
+
+    /* ✅ 메타는 한 줄 유지 + 폭 초과시 ... 처리(버튼 이탈 방지 핵심) */
+    .user-info{
+      font-size:10px;
+      max-width:40vw;
+      overflow:hidden;
+      text-overflow:ellipsis;
       white-space:nowrap;
     }
-    .user-info{
-      color:#FFF1E2;
-      font-size:18px;
-      font-weight:900;
-      white-space:nowrap;         /* ✅ 모바일도 줄바꿈 안함 */
-      word-break:keep-all;
-      text-align:right;
-      line-height:1.2;
-    }
 
+    /* ✅ 버튼은 고정폭 유지 */
     .btn-logout{
-      width:72px;        /* ✅ 64 → 72 */
-      min-width:72px;    /* ✅ 0 → 72 (이탈 방지) */
-      height:32px;       /* ✅ 36 → 32 (헤더 높이 안정화) */
+      width:68px;
+      min-width:68px;
+      height:30px;
       padding:0;
       font-size:11px;
       border-radius:10px;
@@ -372,378 +709,53 @@ function PageClient() {
       align-items:center;
       justify-content:center;
       white-space:nowrap;
-      word-break:keep-all;
-    }
-    .btn-logout:hover{ filter:brightness(.95); }
-    .btn-logout:active{ transform:translateY(1px); }
-
-    .container{
-      max-width:1200px;
-      margin:40px auto;
-      padding:0 20px;
-    }
-    .login-box,
-    .main-content{
-      background:#fff;
-      border-radius:15px;
-      box-shadow:0 8px 32px rgba(0,0,0,.1);
-      padding:40px;
-      margin-bottom:30px;
-    }
-    .login-box{
-      max-width:450px;
-      margin:100px auto;
     }
 
-    .login-title{
-      text-align:center;
-      color:#A3080B;
-      font-size:28px;
-      font-weight:900;
-      margin-bottom:10px;
-    }
-    .login-subtitle{
-      text-align:center;
-      color:#666;
-      margin-bottom:30px;
+    .main-content h2{ font-size:18px !important; }
+    .main-content p{
+      font-size:12px;
+      margin-top:6px !important;
+      margin-bottom:14px !important;
     }
 
-    .form-group{ margin-bottom:20px; }
-    .form-label{
-      display:block;
-      color:#333;
-      font-weight:700;
-      margin-bottom:8px;
-      font-size:14px;
-    }
     .form-input{
-      width:100%;
-      padding:14px 18px;
-      border:2px solid #E0E0E0;
-      border-radius:8px;
-      font-size:15px;
-      transition:all .3s;
-      background:#fff;
+      font-size:12px;
+      padding:10px 12px;
+      border-radius:10px;
     }
-    .form-input:focus{
-      outline:none;
-      border-color:#A3080B;
-      box-shadow:0 0 0 3px rgba(163,8,11,.1);
+
+    .category-section{ padding:14px; margin-bottom:14px; }
+    .category-title{ font-size:14px; margin-bottom:12px; }
+    .category-icon{ width:26px; height:26px; margin-right:10px; flex:0 0 26px; }
+
+    .item-row{ padding:14px; gap:10px; }
+    .item-name{ font-size:12px; }
+
+    .date-btn{
+      font-size:12px;
+      padding:12px 12px;
+      border-radius:12px;
+    }
+    .status-badge{
+      font-size:10px;
+      padding:6px 10px;
+      border-radius:16px;
     }
 
     .btn-primary{
-      width:100%;
-      padding:16px;
-      margin-top:10px;
-      background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
-      color:#fff;
-      border:none;
-      border-radius:8px;
-      font-size:16px;
-      font-weight:800;
-      cursor:pointer;
-      transition:all .2s;
-      text-transform:uppercase;
-      letter-spacing:1px;
-    }
-    .btn-primary:hover{
-      transform:translateY(-2px);
-      box-shadow:0 6px 20px rgba(163,8,11,.35);
-    }
-    .btn-primary:disabled{
-      opacity:.6;
-      cursor:not-allowed;
-      transform:none;
-      box-shadow:none;
-    }
-
-    .category-section{
-      background:#FFF1E2;
-      border-left:5px solid #A3080B;
-      padding:25px;
-      margin-bottom:25px;
-      border-radius:10px;
-    }
-    .category-title{
-      color:#A3080B;
-      font-size:22px;
-      font-weight:900;
-      margin-bottom:20px;
-      display:flex;
-      align-items:center;
-    }
-    .category-icon{
-      width:30px;
-      height:30px;
-      background:#A3080B;
-      color:#fff;
-      border-radius:50%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      margin-right:12px;
-      flex:0 0 30px;
-    }
-    .item-row{
-      background:#fff;
-      padding:20px;
-      margin-bottom:12px;
-      border-radius:12px;
-      display:grid;
-      grid-template-columns:2fr 3fr 1.5fr;
-      gap:20px;
-      align-items:center;
-      box-shadow:0 2px 8px rgba(0,0,0,.05);
-    }
-    .item-name{
-      font-weight:800;
-      color:#333;
-    }
-    .date-btn{
-      width:100%;
-      padding:14px 14px;
-      border:2px solid #E0E0E0;
-      border-radius:10px;
-      background:#FAFAFA;
-      font-weight:800;
-      cursor:pointer;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      font-size:15px;
-    }
-    .date-btn:active{ transform:scale(.995); }
-    .date-btn .hint{ color:#666; font-weight:800; }
-    .date-btn .value{ color:#111; font-weight:900; }
-
-    .status-badge{
-      padding:8px 12px;
-      border-radius:20px;
       font-size:12px;
-      font-weight:900;
-      text-align:center;
-      text-transform:uppercase;
+      padding:12px;
+      border-radius:10px;
       letter-spacing:.5px;
-      width:fit-content;
     }
-    .status-ok{ background:#4CAF50; color:#fff; }
-    .status-warning{ background:#FFC107; color:#333; }
-    .status-danger{ background:#F44336; color:#fff; }
+    .save-section{ padding:14px; bottom:12px; }
 
-    .save-section{
-      position:sticky;
-      bottom:20px;
-      background:#fff;
-      padding:20px;
-      border-radius:12px;
-      box-shadow:0 -4px 20px rgba(0,0,0,.1);
-      text-align:center;
-    }
-
-    .alert{
-      padding:12px 16px;
-      border-radius:8px;
-      margin-bottom:20px;
-      font-weight:700;
-    }
-    .alert-error{ background:#FFEBEE; color:#C62828; }
-    .alert-success{ background:#E8F5E9; color:#2E7D32; }
-
-    .modal-backdrop{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.55);
-      display:flex;
-      align-items:flex-end;
-      justify-content:center;
-      padding:16px;
-      z-index:9999;
-    }
-    .modal{
-      width:100%;
-      max-width:520px;
-      background:#fff;
-      border-radius:16px;
-      overflow:hidden;
-      box-shadow:0 12px 40px rgba(0,0,0,.25);
-    }
-    .modal-header{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:14px 16px;
-      background:#FFF1E2;
-      border-bottom:1px solid #f0e0d1;
-    }
-    .modal-title{
-      font-weight:900;
-      color:#A3080B;
-    }
-    .modal-close{
-      border:none;
-      background:transparent;
-      font-size:22px;
-      cursor:pointer;
-      font-weight:900;
-      color:#A3080B;
-    }
-    .modal-body{ padding:16px; }
-    .quick-actions{
-      display:flex;
-      gap:10px;
-      margin-bottom:12px;
-    }
-    .quick-actions button{
-      flex:1;
-      padding:12px 10px;
-      border-radius:10px;
-      border:2px solid #E0E0E0;
-      background:#fff;
-      font-weight:900;
-      cursor:pointer;
-      white-space:nowrap;
-    }
-    .quick-actions button:hover{ border-color:#A3080B; }
-    .modal-footer{
-      padding:14px 16px;
-      border-top:1px solid #f2f2f2;
-      display:flex;
-      gap:10px;
-    }
-    .btn-secondary{
-      flex:1;
-      padding:14px 12px;
-      border-radius:10px;
-      border:2px solid #E0E0E0;
-      background:#fff;
-      font-weight:900;
-      cursor:pointer;
-      white-space:nowrap;
-    }
-    .btn-confirm{
-      flex:2;
-      padding:14px 12px;
-      border-radius:10px;
-      border:none;
-      background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
-      color:#fff;
-      font-weight:900;
-      cursor:pointer;
-      white-space:nowrap;
-    }
-
-    @media (max-width:768px){
-      .header-content{ padding:0 16px; }
-      /* ✅ 폰트 크기 "변경 없음" 요청이므로 logo 크기는 유지, 대신 레이아웃만 맞춤 */
-      .logo{ white-space:nowrap; }
-      .user-info{ font-size:11px; }
-
-      .login-box{ margin:60px auto; padding:24px; }
-      .main-content{ padding:20px; }
-
-      .category-title{ font-size:16px; }
-      .category-section{ padding:16px; }
-
-      .item-row{ grid-template-columns:1fr; gap:10px; padding:16px; }
-      .item-name{ font-size:14px; line-height:1.25; }
-
-      .date-btn{ font-size:13px; padding:16px 14px; border-radius:12px; }
-
-      .status-badge{ font-size:11px; padding:6px 10px; }
-
-      /* ✅ 여기 원래 30/22로 커져있던 부분은 과도함 → 정상값 */
-      .modal-title{ font-size:15px; }
-      .quick-actions button{ font-size:13px; padding:10px 6px; }
-    }
-
-    /* ✅ 반응형(<=560px)에서만: 로고 2줄 (폰트 크기 그대로) */
-    @media (max-width:560px){
-      .header{ padding:12px 0; }
-      .header-content{
-        padding:0 14px;
-        align-items:flex-start;
-        gap:10px;
-      }
-
-      /* ✅ 로고: 2줄로만 변경, 크기는 그대로(32px 유지) */
-      .logo{
-        white-space:normal;
-        line-height:1.05;
-        max-width:68vw;   /* ✅ 54vw → 68vw (좌측 타이틀 공간 확보) */
-        letter-spacing:1px;
-      }
-      .logo-line{ display:block; }
-
-      .header-right{
-        align-items:flex-end;
-        white-space:nowrap;
-      }
-
-      /* ✅ 우측 메타: 줄바꿈 안함 */
-      .user-info{
-        font-size:11px;
-        white-space:nowrap;
-      }
-
-      .btn-logout{
-        width:64px;
-        height:36px;
-        padding:0;
-        font-size:11px;
-        border-radius:10px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        white-space:nowrap;
-        word-break:keep-all;
-        min-width:0;
-      }
-
-      .main-content h2{ font-size:18px !important; }
-      .main-content p{
-        font-size:12px;
-        margin-top:6px !important;
-        margin-bottom:14px !important;
-      }
-
-      .form-input{
-        font-size:12px;
-        padding:10px 12px;
-        border-radius:10px;
-      }
-
-      .category-section{ padding:14px; margin-bottom:14px; }
-      .category-title{ font-size:14px; margin-bottom:12px; }
-      .category-icon{ width:26px; height:26px; margin-right:10px; flex:0 0 26px; }
-
-      .item-row{ padding:14px; gap:10px; }
-      .item-name{ font-size:12px; }
-
-      .date-btn{
-        font-size:12px;
-        padding:12px 12px;
-        border-radius:12px;
-      }
-      .status-badge{
-        font-size:10px;
-        padding:6px 10px;
-        border-radius:16px;
-      }
-
-      .btn-primary{
-        font-size:12px;
-        padding:12px;
-        border-radius:10px;
-        letter-spacing:.5px;
-      }
-      .save-section{ padding:14px; bottom:12px; }
-            /* ✅ sticky 버튼에 가려지지 않도록 하단 여백 확보 */
-      .main-content{ padding-bottom:110px; }
-    }
+    /* ✅ sticky 버튼에 가려지지 않도록 하단 여백 확보 */
+    .main-content{ padding-bottom:110px; }
+  }
   `,
-    []
-  );
+  []
+);
 
   const API_BASE_URL =
     "https://inventory-api-231876330057.asia-northeast3.run.app";
