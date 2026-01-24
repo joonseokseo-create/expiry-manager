@@ -22,41 +22,33 @@ const API_BASE =
 /* =========================================================
  *  1) 날짜/표시 유틸 (KST 고정)
  * ========================================================= */
-
-// 오늘 날짜 (KST) YYYY-MM-DD
 function ymdToday() {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return kst.toISOString().slice(0, 10);
 }
 
-// 유통기한 표시: "2026-01-25" 형태로 강제 (✅ 요청 1)
 function formatExpiryYMD(v) {
   if (!v) return "";
-
   const raw = String(v);
 
-  // 1) "YYYY-MM-DD"가 포함되어 있으면 그것 우선
   const m = raw.match(/\d{4}-\d{2}-\d{2}/);
-  if (m) return m[0]; // ✅ 2026-01-25
+  if (m) return m[0];
 
-  // 2) Date 파싱 가능한 경우 (예: "Sun, 25 Jan 2026 00:00:00 GMT")
   const d = new Date(raw);
   if (!isNaN(d.getTime())) {
     const y = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
-    return `${y}-${mm}-${dd}`; // ✅ 2026-01-25
+    return `${y}-${mm}-${dd}`;
   }
 
-  // 3) 최후 fallback
   return raw.slice(0, 10);
 }
 
 /* =========================================================
  *  2) 페이지 엔트리 (Suspense 래퍼)
  * ========================================================= */
-
 export default function DashboardPage() {
   return (
     <Suspense fallback={<div style={{ padding: 40 }}>로딩중...</div>}>
@@ -68,7 +60,6 @@ export default function DashboardPage() {
 /* =========================================================
  *  3) 메인 페이지 컴포넌트
  * ========================================================= */
-
 function DashboardPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,19 +68,19 @@ function DashboardPageInner() {
    *  3-A) URL/로컬스토리지에서 헤더 매장 정보 읽기 (표시용)
    *   - ⚠️ 조회 조건에는 절대 사용하지 않음
    * --------------------------------------------------------- */
-  const currentStoreCode = (searchParams.get("store_code") || "").trim();
-  const currentStoreName = (searchParams.get("store_name") || "").trim();
+  const urlStoreCode = (searchParams.get("store_code") || "").trim();
+  const urlStoreName = (searchParams.get("store_name") || "").trim();
 
   const [headerStoreCode, setHeaderStoreCode] = useState("");
   const [headerStoreName, setHeaderStoreName] = useState("");
 
   useEffect(() => {
-    if (currentStoreCode) setHeaderStoreCode(currentStoreCode);
-    if (currentStoreName) setHeaderStoreName(currentStoreName);
-  }, [currentStoreCode, currentStoreName]);
+    if (urlStoreCode) setHeaderStoreCode(urlStoreCode);
+    if (urlStoreName) setHeaderStoreName(urlStoreName);
+  }, [urlStoreCode, urlStoreName]);
 
   useEffect(() => {
-    if (currentStoreCode || currentStoreName) return;
+    if (urlStoreCode || urlStoreName) return;
     try {
       const raw = localStorage.getItem("kfc_store_info");
       if (!raw) return;
@@ -99,12 +90,10 @@ function DashboardPageInner() {
       if (sc) setHeaderStoreCode(sc);
       if (sn) setHeaderStoreName(sn);
     } catch {}
-  }, [currentStoreCode, currentStoreName]);
+  }, [urlStoreCode, urlStoreName]);
 
   /* ---------------------------------------------------------
    *  3-B) 화면 필터 상태
-   *   ✅ 기본 축: 날짜 + 지역
-   *   ✅ 매장은 Drill-down(선택 시만 store_code 사용)
    * --------------------------------------------------------- */
   const [inputDate, setInputDate] = useState(ymdToday());
   const [region, setRegion] = useState("");
@@ -127,7 +116,10 @@ function DashboardPageInner() {
 
   /* ---------------------------------------------------------
    *  3-E) 화면 스타일(CSS 문자열)
-   *   ✅ 요청 3: 입력하기(초록), 저장하기(노랑)
+   *  ✅ 모바일(≤560px)에서만:
+   *    - 헤더 타이틀 2줄
+   *    - 날짜/매장코드/매장명 3줄
+   *    - 저장/입력 버튼 세로(작게)
    * --------------------------------------------------------- */
   const styles = `
     .page{min-height:100vh;background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);}
@@ -137,56 +129,75 @@ function DashboardPageInner() {
       background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
       padding:14px 20px;
       color:#fff;
-      font-size:18px;
       font-weight:900;
     }
     .headerInner{
       display:flex;
       justify-content:space-between;
       align-items:center;
-      gap:10px;
+      gap:12px;
     }
+
+    /* ✅ PC 기본: 2줄 타이틀 + 크게 */
     .logo{
-      letter-spacing:.5px;
-      white-space:nowrap;
-      font-size:18px;
+      font-size:28px;
       font-weight:900;
+      letter-spacing:.6px;
+      white-space:normal;     /* ✅ 2줄 허용 */
+      line-height:1.05;
     }
+    .logoLine{display:block;}  /* ✅ 항상 줄 단위 */
+    .logoBreak{display:block;} /* ✅ 필요시만 쓰고 싶으면 유지 */
+
+    /* PC 기본: 오른쪽 가로 */
     .headerRight{
       display:flex;
       align-items:center;
-      gap:8px;
+      gap:10px;
       white-space:nowrap;
     }
 
+    /* PC 기본: 날짜/코드/매장명은 한 줄 */
+    .todayText{
+      font-size:14px;
+      font-weight:900;
+      opacity:.95;
+      white-space:nowrap;
+      word-break:keep-all;
+      text-align:right;
+      line-height:1.2;
+    }
+    .headerMetaLine{display:inline;}
+
+    /* PC 기본: 버튼 가로 */
+    .headerActions{
+      display:flex;
+      flex-direction:row;
+      gap:8px;
+      align-items:center;
+    }
     .headerBtn{
       display:inline-flex;
       align-items:center;
       justify-content:center;
       height:32px;
-      padding:0 10px;
+      padding:0 12px;
       border-radius:10px;
       border:1px solid rgba(255,255,255,0.35);
       color:#fff;
       font-weight:900;
       font-size:12px;
-      text-decoration:none;
-      white-space:nowrap;
       cursor:pointer;
       box-shadow:0 2px 10px rgba(0,0,0,.12);
+      white-space:nowrap;
+      word-break:keep-all;
+      min-width:84px;
     }
     .btnGreen{background:rgba(46, 204, 113, 0.95); border-color: rgba(255,255,255,0.25);}
     .btnGreen:hover{filter:brightness(0.95);}
     .btnYellow{background:rgba(241, 196, 15, 0.95); border-color: rgba(255,255,255,0.25); color:#2b2b2b;}
     .btnYellow:hover{filter:brightness(0.96);}
     .headerBtn:disabled{opacity:.55;cursor:not-allowed;}
-
-    .todayText{
-      font-size:12px;
-      font-weight:900;
-      opacity:.95;
-      white-space:nowrap;
-    }
 
     /* Layout */
     .container{max-width:1400px;margin:22px auto;padding:0 16px;}
@@ -263,37 +274,58 @@ function DashboardPageInner() {
     /* Tablet */
     @media (max-width:980px){
       .grid{grid-template-columns:1fr;}
-      .header{padding:12px 16px;font-size:14px;}
-      .logo{font-size:14px;white-space:normal;}
+      .header{padding:12px 16px;}
+      .logo{font-size:22x;white-space:normal;}
       .container{margin:16px auto;}
       .panel{max-height:none;}
     }
 
-    /* Mobile (핵심 축소) */
+    /* Mobile (≤560px) */
     @media (max-width:560px){
       .header{padding:10px 12px;}
-      .headerInner{gap:8px;}
-      .logo{
-        font-size:12px;
-        letter-spacing:0;
-        white-space:normal;
-        line-height:1.1;
-        max-width:46vw;
-      }
-      .headerRight{gap:6px;}
+      .headerInner{gap:10px;align-items:flex-start;}
 
+      /* ✅ 헤더 타이틀 2줄 */
+      .logo{
+        font-size:21px;
+        white-space:normal;
+        max-width:52vw;
+        line-height:1.15;
+        letter-spacing:0;
+      }
+      .logoLine{display:block;}
+      .logoBreak{display:block;}
+
+      /* ✅ 오른쪽 수직 */
+      .headerRight{
+        flex-direction:column;
+        align-items:flex-end;
+        gap:8px;
+        white-space:normal;
+      }
+
+      /* ✅ 날짜/코드/매장명 3줄 고정 */
+      .todayText{
+        font-size:10px;
+        white-space:normal;
+        line-height:1.25;
+        text-align:right;
+      }
+      .headerMetaLine{display:block;}
+
+      /* ✅ 저장/입력 버튼: 세로 + 더 작게 */
+      .headerActions{
+        flex-direction:column;
+        gap:6px;
+        width:78px;
+        align-items:stretch;
+      }
       .headerBtn{
         height:26px;
         padding:0 8px;
         font-size:10px;
-        border-radius:8px;
-      }
-      .todayText{
-        font-size:9px;
-        max-width:36vw;
-        overflow:hidden;
-        text-overflow:ellipsis;
-        white-space:nowrap;
+        border-radius:9px;
+        min-width:0;
       }
 
       .container{padding:0 12px;margin:14px auto;}
@@ -311,6 +343,9 @@ function DashboardPageInner() {
 
       .btnSecondary{height:34px;font-size:11px;border-radius:9px;}
 
+      /* ✅ 모바일에서 카테고리 필터 숨김 */
+      .hideCategoryOnMobile{display:none !important;}
+
       .panel{padding:12px;}
       .panelTitle{font-size:13px;margin-bottom:10px;}
 
@@ -322,21 +357,28 @@ function DashboardPageInner() {
         overflow:hidden;
         text-overflow:ellipsis;
       }
-      th:nth-child(1),td:nth-child(1){width:18%;}
-      th:nth-child(2),td:nth-child(2){width:24%;}
-      th:nth-child(3),td:nth-child(3){width:16%;}
-      th:nth-child(4),td:nth-child(4){width:22%;}
-      th:nth-child(5),td:nth-child(5){width:12%;}
-      th:nth-child(6),td:nth-child(6){width:8%;text-align:right;}
+
+      /* ✅ 모바일에서 남은일수(6번째) 숨김 */
+      table th:nth-child(6),
+      table td:nth-child(6){
+        display:none;
+      }
+
+      /* ✅ (이미 적용 완료라고 했던) 모바일 전용 열 숨김: 매장코드(1번째) 숨김 */
+      table th:nth-child(1),
+      table td:nth-child(1){
+        display:none;
+      }
+
+      th:nth-child(2),td:nth-child(2){width:30%;}
+      th:nth-child(3),td:nth-child(3){width:18%;}
+      th:nth-child(4),td:nth-child(4){width:32%;}
+      th:nth-child(5),td:nth-child(5){width:20%;}
     }
   `;
 
   /* ---------------------------------------------------------
    *  3-F) 데이터 가져오기 (캐시 + 취소 + transition)
-   *  ✅ 정책:
-   *   - input_date 항상 적용
-   *   - region 선택 시 region 적용
-   *   - storeCode 선택 시 store_code로 Drill-down (region보다 우선)
    * --------------------------------------------------------- */
   const fetchData = useCallback(
     async (next) => {
@@ -365,13 +407,11 @@ function DashboardPageInner() {
       try {
         setLoading(true);
 
-        // summary: 날짜 + (매장선택이면 store_code, 아니면 region)
         const qs = new URLSearchParams();
         if (d) qs.set("input_date", d);
         if (sc) qs.set("store_code", sc);
         else if (r) qs.set("region", r);
 
-        // items: 날짜 + (매장선택이면 store_code, 아니면 region) + category
         const qsItems = new URLSearchParams();
         if (d) qsItems.set("input_date", d);
         if (sc) qsItems.set("store_code", sc);
@@ -395,7 +435,10 @@ function DashboardPageInner() {
         const nextSummary = Array.isArray(sJson.rows) ? sJson.rows : [];
         const nextItems = Array.isArray(iJson.rows) ? iJson.rows : [];
 
-        cacheRef.current.set(cacheKey, { summary: nextSummary, items: nextItems });
+        cacheRef.current.set(cacheKey, {
+          summary: nextSummary,
+          items: nextItems,
+        });
 
         startTransition(() => {
           setSummary(nextSummary);
@@ -423,11 +466,13 @@ function DashboardPageInner() {
   }, [inputDate, region, category, storeCode, fetchData]);
 
   /* ---------------------------------------------------------
-   *  3-G) 필터 옵션 (지역/매장/카테고리)
+   *  3-G) 필터 옵션
    * --------------------------------------------------------- */
   const regionOptions = useMemo(() => {
     const set = new Set(summary.map((r) => r.region_name).filter(Boolean));
-    return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "ko"));
+    return Array.from(set).sort((a, b) =>
+      String(a).localeCompare(String(b), "ko")
+    );
   }, [summary]);
 
   const storeOptions = useMemo(() => {
@@ -435,7 +480,10 @@ function DashboardPageInner() {
     const map = new Map();
     for (const r of rows) {
       if (r.store_code) {
-        map.set(r.store_code, { store_code: r.store_code, store_name: r.store_name });
+        map.set(r.store_code, {
+          store_code: r.store_code,
+          store_name: r.store_name,
+        });
       }
     }
     return Array.from(map.values()).sort((a, b) =>
@@ -445,35 +493,25 @@ function DashboardPageInner() {
 
   const categoryOptions = useMemo(() => {
     const set = new Set(items.map((r) => r.category).filter(Boolean));
-    return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "ko"));
+    return Array.from(set).sort((a, b) =>
+      String(a).localeCompare(String(b), "ko")
+    );
   }, [items]);
 
   /* ---------------------------------------------------------
-   *  3-H) KPI (✅ 요청 2)
-   *
-   *  - enteredStores: 해당 필터(날짜+지역(+매장))에서 is_entered=1인 매장수
-   *  - totalStores: 해당 필터에 걸린 전체 매장수(중복 제거)
-   *  - notEnteredStores = totalStores - enteredStores
-   *
-   *  ⚠️ 기존 문제 원인: is_entered가 문자열("1")인 경우가 많아 ===1로 카운팅이 안 됨.
-   *     → Number()로 정규화해서 카운팅
+   *  3-H) KPI
    * --------------------------------------------------------- */
   const kpiData = useMemo(() => {
-    // summary가 "매장 1행" 구조라고 가정하고, 안전하게 unique store로 계산
     const storeSet = new Set(
       summary.map((r) => String(r.store_code || "").trim()).filter(Boolean)
     );
     const totalStores = storeSet.size;
 
     const enteredStores = summary.filter((r) => Number(r.is_entered) === 1).length;
-
     const notEnteredStores = Math.max(0, totalStores - enteredStores);
-
-    // 등록품목/조회건수: 현재 items 기준으로 유지
-    const totalCnt = items.length; // "현재 필터로 조회된 입력건수"와 동일하게 보이게(혼선 방지)
     const inputRows = items.length;
 
-    return { enteredStores, notEnteredStores, totalCnt, inputRows, totalStores };
+    return { enteredStores, notEnteredStores, inputRows, totalStores };
   }, [summary, items]);
 
   const KPI_DEFS = useMemo(
@@ -497,14 +535,11 @@ function DashboardPageInner() {
   };
 
   /* ---------------------------------------------------------
-   *  3-J) 저장하기(엑셀 다운로드) (✅ 요청 3)
-   *   - 현재 필터로 조회된 items를 dashboard.xlsx로 다운로드
+   *  3-J) 저장하기(엑셀 다운로드)
    * --------------------------------------------------------- */
   const onDownloadXlsx = useCallback(async () => {
-    // 데이터 없으면 다운로드하지 않음
     if (!items || items.length === 0) return;
 
-    // 동적 import로 번들 최소화
     const XLSX = await import("xlsx");
 
     const rows = items.map((r) => ({
@@ -523,22 +558,36 @@ function DashboardPageInner() {
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-
-    // 시트명: Dashboard
     XLSX.utils.book_append_sheet(wb, ws, "Dashboard");
-
-    // 파일명: dashboard.xlsx (요청 그대로)
     XLSX.writeFile(wb, "dashboard.xlsx");
   }, [items, inputDate, region]);
 
   /* ---------------------------------------------------------
-   *  3-K) 로딩 표시
+   *  3-K) 입력하기 이동 (항상 store_code/store_name 유지)
    * --------------------------------------------------------- */
+  const goInputPage = useCallback(() => {
+    const sc = (headerStoreCode || "").trim();
+    const sn = (headerStoreName || "").trim();
+
+    const qs = new URLSearchParams();
+    if (sc) qs.set("store_code", sc);
+    if (sn) qs.set("store_name", sn);
+
+    const q = qs.toString();
+    router.push(q ? `/?${q}` : `/`);
+  }, [router, headerStoreCode, headerStoreName]);
+
   if (loading) return <div style={{ padding: 40 }}>로딩중...</div>;
 
   /* =========================================================
-   *  4) 렌더링
+   *  4) 헤더 표기 문자열
+   *   - PC: "YYYY-MM-DD / CODE / NAME" 한 줄
+   *   - Mobile: 3줄 (CSS에서 block 처리)
    * ========================================================= */
+  const headerDate = ymdToday();
+  const safeCode = headerStoreCode || "-";
+  const safeName = headerStoreName || "매장명 없음";
+
   return (
     <div className="page">
       <style dangerouslySetInnerHTML={{ __html: styles }} />
@@ -546,38 +595,39 @@ function DashboardPageInner() {
       {/* Header */}
       <div className="header">
         <div className="headerInner">
-          <div className="logo">KFC OPERATIONS - 유통기한 DASHBOARD</div>
+          {/* ✅ 모바일에서 2줄 */}
+          <div className="logo">
+            <span className="logoLine">KFC OPERATIONS</span>
+            <span className="logoBreak" />
+            <span className="logoLine">유통기한 DASHBOARD</span>
+          </div>
 
           <div className="headerRight">
-            {/* ✅ 저장하기 버튼(노랑) */}
-            <button
-              className="headerBtn btnYellow"
-              type="button"
-              disabled={!items || items.length === 0}
-              onClick={onDownloadXlsx}
-              title={items?.length ? "dashboard.xlsx 다운로드" : "다운로드할 데이터가 없습니다"}
-            >
-              저장하기
-            </button>
-
-            {/* ✅ 입력하기 버튼(초록) */}
-            <button
-              className="headerBtn btnGreen"
-              type="button"
-              onClick={() => {
-                const qs = new URLSearchParams();
-                if (headerStoreCode) qs.set("store_code", headerStoreCode);
-                if (headerStoreName) qs.set("store_name", headerStoreName);
-                const q = qs.toString();
-                router.push(q ? `/?${q}` : `/`);
-              }}
-            >
-              입력하기
-            </button>
-
+            {/* ✅ PC: 한 줄 / Mobile: 3줄 */}
             <div className="todayText">
-              {ymdToday()} | {headerStoreCode || "-"} | {headerStoreName || "매장명 없음"}
-              {isPending ? " | 업데이트중..." : ""}
+              <span className="headerMetaLine">{headerDate}</span>
+              <span className="headerMetaLine"> | {safeCode}</span>
+              <span className="headerMetaLine"> | {safeName}</span>
+              <span>{isPending ? " | 업데이트중..." : ""}</span>
+            </div>
+
+            {/* ✅ PC: 가로 / Mobile: 세로(작게) */}
+            <div className="headerActions">
+              <button
+                className="headerBtn btnYellow"
+                type="button"
+                disabled={!items || items.length === 0}
+                onClick={onDownloadXlsx}
+                title={
+                  items?.length ? "dashboard.xlsx 다운로드" : "다운로드할 데이터가 없습니다"
+                }
+              >
+                저장하기
+              </button>
+
+              <button className="headerBtn btnGreen" type="button" onClick={goInputPage}>
+                입력하기
+              </button>
             </div>
           </div>
         </div>
@@ -588,14 +638,12 @@ function DashboardPageInner() {
         <div className="grid">
           {/* Left: KPI + Filters */}
           <div className="leftCol">
-            {/* KPI */}
             <div className="kpiGrid">
               {KPI_DEFS.map((k) => (
                 <Kpi key={k.key} title={k.title} value={kpiData[k.key]} />
               ))}
             </div>
 
-            {/* Filters */}
             <div className="filterBox">
               <div className="filterTitle">필터</div>
 
@@ -617,7 +665,7 @@ function DashboardPageInner() {
                     value={region}
                     onChange={(e) => {
                       setRegion(e.target.value);
-                      setStoreCode(""); // 지역 변경 시 매장 초기화
+                      setStoreCode("");
                     }}
                   >
                     <option value="">전체</option>
@@ -645,7 +693,7 @@ function DashboardPageInner() {
                   </select>
                 </div>
 
-                <div className="row">
+                <div className="row hideCategoryOnMobile">
                   <div className="rowLabel">카테고리</div>
                   <select
                     className="control"
@@ -698,10 +746,7 @@ function DashboardPageInner() {
                       <td>{r.store_name || "-"}</td>
                       <td>{r.category || "-"}</td>
                       <td>{r.item_name || "-"}</td>
-
-                      {/* ✅ 요청 1: 2026-01-25 */}
                       <td className="dangerText">{formatExpiryYMD(r.expiry_date)}</td>
-
                       <td className={remain !== null && remain < 0 ? "dangerText" : "muted"}>
                         {remain === null ? "-" : remain}
                       </td>
@@ -733,5 +778,5 @@ function Kpi({ title, value }) {
       <div className="kpiTitle">{title}</div>
       <div className="kpiValue">{safe}</div>
     </div>
-  );@media (max-width:768px){
+  );
 }

@@ -16,6 +16,12 @@ export const dynamic = "force-dynamic";
 /* =========================================================
  *  1) Date Utils
  * ========================================================= */
+function ymdTodayKST() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().slice(0, 10);
+}
+
 function parseYMD(ymd) {
   const s = String(ymd || "").slice(0, 10);
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -26,9 +32,9 @@ function parseYMD(ymd) {
   return new Date(y, mo - 1, d);
 }
 
-// =======================
-// Picker Style Constants
-// =======================
+/* =========================================================
+ *  2) Picker Style Constants
+ * ========================================================= */
 const arrowBtnStyle = {
   border: "none",
   background: "transparent",
@@ -48,14 +54,13 @@ const numberAreaStyle = {
   cursor: "ns-resize",
 };
 
-
 /* =========================================================
- *  3) NumberPicker (Wheel UI)  ✅ DateWheelPicker보다 먼저 선언
+ *  3) NumberPicker (Wheel UI)
  * ========================================================= */
 function NumberPicker({ value, min, max, onChange }) {
   const ref = React.useRef(null);
 
-  // ✅ 직접입력 모드
+  // 직접입력 모드
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(String(value));
 
@@ -131,7 +136,6 @@ function NumberPicker({ value, min, max, onChange }) {
       <div style={numberAreaStyle}>
         <div style={{ opacity: 0.25, height: 24 }}>{up}</div>
 
-        {/* ✅ 중앙 큰 숫자: 클릭하면 직접입력 */}
         {!editing ? (
           <button
             type="button"
@@ -144,6 +148,7 @@ function NumberPicker({ value, min, max, onChange }) {
               fontSize: 38,
               fontWeight: 900,
               color: "#A3080B",
+              whiteSpace: "nowrap",
             }}
             title="클릭해서 직접 입력"
           >
@@ -185,17 +190,11 @@ function NumberPicker({ value, min, max, onChange }) {
 }
 
 /* =========================================================
- *  2) DateWheelPicker (Modal 내부 날짜 선택)
- *  ✅ +7/+30 클릭 오류(무한루프) 방지 버전
+ *  4) DateWheelPicker (Modal 내부 날짜 선택)
+ *  ✅ +7/+30 무한루프 방지 버전
  * ========================================================= */
 function DateWheelPicker({ value, onChange }) {
-  // value를 항상 YYYY-MM-DD로 정규화
-  const norm = React.useCallback(
-    (v) => String(v || "").slice(0, 10),
-    []
-  );
-
-  // 마지막으로 "처리한" value 추적 (루프 차단 핵심)
+  const norm = React.useCallback((v) => String(v || "").slice(0, 10), []);
   const lastValueRef = React.useRef(norm(value));
 
   const initDate = React.useMemo(() => parseYMD(value), [value]);
@@ -204,12 +203,9 @@ function DateWheelPicker({ value, onChange }) {
   const [month, setMonth] = React.useState(() => initDate.getMonth() + 1);
   const [day, setDay] = React.useState(() => initDate.getDate());
 
-  // 1) 외부 value가 바뀌면 내부 상태 동기화
   React.useEffect(() => {
     const v = norm(value);
     if (!v) return;
-
-    // 이미 같은 value면 동작 안함
     if (v === lastValueRef.current) return;
 
     lastValueRef.current = v;
@@ -229,21 +225,17 @@ function DateWheelPicker({ value, onChange }) {
     [year, month]
   );
 
-  // 2) day clamp (필요할 때만 set)
   React.useEffect(() => {
     if (day > maxDay) setDay(maxDay);
     else if (day < 1) setDay(1);
   }, [day, maxDay]);
 
-  // 3) 내부 year/month/day 변경 → 부모 value 업데이트 (단, lastValueRef로 루프 차단)
   React.useEffect(() => {
     const mm = String(month).padStart(2, "0");
     const dd = String(day).padStart(2, "0");
     const next = `${year}-${mm}-${dd}`;
 
-    // 이미 마지막 처리 값이면 onChange 호출 금지
     if (next === lastValueRef.current) return;
-
     lastValueRef.current = next;
     onChange(next);
   }, [year, month, day, onChange]);
@@ -257,9 +249,8 @@ function DateWheelPicker({ value, onChange }) {
   );
 }
 
-
 /* =========================================================
- *  4) Category config
+ *  5) Category config
  * ========================================================= */
 const CATEGORY_ICON_MAP = {
   워크인: "🍗",
@@ -286,7 +277,7 @@ const CATEGORY_ORDER = [
 ];
 
 /* =========================================================
- *  5) Page Wrapper (Suspense)
+ *  6) Page Wrapper (Suspense)
  * ========================================================= */
 export default function Page() {
   return (
@@ -297,24 +288,23 @@ export default function Page() {
 }
 
 /* =========================================================
- *  6) Main Component
+ *  7) Main Component
  * ========================================================= */
 function PageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // searchParams 값은 변수로 빼서 effect 의존성 안정화
   const urlStoreCode = (searchParams.get("store_code") || "").trim();
   const urlStoreName = (searchParams.get("store_name") || "").trim();
 
   /* ---------------------------
    *  스타일 (문자열 CSS)
+   *  ✅ 요청 반영:
+   *   - 로고는 반응형에서만 2줄로 (폰트 크기 고정)
+   *   - 우측 메타는 "날짜 공백 코드 공백 매장명" (모바일도 줄바꿈 안함)
    * --------------------------- */
-    const styles = useMemo(
-      () => `
-    /* =========================
-      0) 기본 Reset / Body
-      ========================= */
+  const styles = useMemo(
+    () => `
     *{
       margin:0;
       padding:0;
@@ -326,9 +316,6 @@ function PageClient() {
       min-height:100vh;
     }
 
-    /* =========================
-      1) Header
-      ========================= */
     .header{
       background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
       padding:20px 0;
@@ -343,23 +330,53 @@ function PageClient() {
       padding:0 30px;
       gap:12px;
     }
+
+    /* ✅ 로고: 기본(PC/태블릿) 한줄 */
     .logo{
-      font-size:32px;
+      font-size:32px;              /* ✅ 폰트 크기 고정 */
       font-weight:900;
       color:#fff;
       letter-spacing:2px;
       text-shadow:2px 2px 4px rgba(0,0,0,.3);
+      white-space:nowrap;
+      line-height:1.05;
+    }
+    .logo-line{ display:inline; }
+
+    /* ✅ 헤더 우측: 가로 + 줄바꿈 없음 */
+    .header-right{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      white-space:nowrap;
     }
     .user-info{
       color:#FFF1E2;
       font-size:18px;
       font-weight:900;
-      white-space:nowrap;
+      white-space:nowrap;         /* ✅ 모바일도 줄바꿈 안함 */
+      word-break:keep-all;
+      text-align:right;
+      line-height:1.2;
     }
 
-    /* =========================
-      2) Layout Container / Box
-      ========================= */
+    .btn-logout{
+      height:36px;
+      padding:0 14px;
+      border:none;
+      border-radius:10px;
+      background:#FFD400;
+      color:#111;
+      font-weight:900;
+      cursor:pointer;
+      box-shadow:0 3px 10px rgba(0,0,0,.12);
+      white-space:nowrap;
+      word-break:keep-all;
+      min-width:72px;
+    }
+    .btn-logout:hover{ filter:brightness(.95); }
+    .btn-logout:active{ transform:translateY(1px); }
+
     .container{
       max-width:1200px;
       margin:40px auto;
@@ -378,9 +395,6 @@ function PageClient() {
       margin:100px auto;
     }
 
-    /* =========================
-      3) Login Text
-      ========================= */
     .login-title{
       text-align:center;
       color:#A3080B;
@@ -394,9 +408,6 @@ function PageClient() {
       margin-bottom:30px;
     }
 
-    /* =========================
-      4) Form / Inputs
-      ========================= */
     .form-group{ margin-bottom:20px; }
     .form-label{
       display:block;
@@ -420,10 +431,6 @@ function PageClient() {
       box-shadow:0 0 0 3px rgba(163,8,11,.1);
     }
 
-    /* =========================
-      5) Buttons
-      ========================= */
-    /* 기본 빨간 버튼 (저장/결과조회/시작하기 등) */
     .btn-primary{
       width:100%;
       padding:16px;
@@ -450,24 +457,6 @@ function PageClient() {
       box-shadow:none;
     }
 
-    /* 로그아웃 버튼 (노란색) */
-    .btn-logout{
-      height:36px;
-      padding:0 14px;
-      border:none;
-      border-radius:10px;
-      background:#FFD400;
-      color:#111;
-      font-weight:900;
-      cursor:pointer;
-      box-shadow:0 3px 10px rgba(0,0,0,.12);
-    }
-    .btn-logout:hover{ filter:brightness(.95); }
-    .btn-logout:active{ transform:translateY(1px); }
-
-    /* =========================
-      6) Category / Items
-      ========================= */
     .category-section{
       background:#FFF1E2;
       border-left:5px solid #A3080B;
@@ -528,9 +517,6 @@ function PageClient() {
     .date-btn .hint{ color:#666; font-weight:800; }
     .date-btn .value{ color:#111; font-weight:900; }
 
-    /* =========================
-      7) Status Badge
-      ========================= */
     .status-badge{
       padding:8px 12px;
       border-radius:20px;
@@ -539,14 +525,12 @@ function PageClient() {
       text-align:center;
       text-transform:uppercase;
       letter-spacing:.5px;
+      width:fit-content;
     }
     .status-ok{ background:#4CAF50; color:#fff; }
     .status-warning{ background:#FFC107; color:#333; }
     .status-danger{ background:#F44336; color:#fff; }
 
-    /* =========================
-      8) Save Area (Bottom Sticky)
-      ========================= */
     .save-section{
       position:sticky;
       bottom:20px;
@@ -557,9 +541,6 @@ function PageClient() {
       text-align:center;
     }
 
-    /* =========================
-      9) Alerts
-      ========================= */
     .alert{
       padding:12px 16px;
       border-radius:8px;
@@ -569,9 +550,6 @@ function PageClient() {
     .alert-error{ background:#FFEBEE; color:#C62828; }
     .alert-success{ background:#E8F5E9; color:#2E7D32; }
 
-    /* =========================
-      10) Modal
-      ========================= */
     .modal-backdrop{
       position:fixed;
       inset:0;
@@ -624,6 +602,7 @@ function PageClient() {
       background:#fff;
       font-weight:900;
       cursor:pointer;
+      white-space:nowrap;
     }
     .quick-actions button:hover{ border-color:#A3080B; }
     .modal-footer{
@@ -640,6 +619,7 @@ function PageClient() {
       background:#fff;
       font-weight:900;
       cursor:pointer;
+      white-space:nowrap;
     }
     .btn-confirm{
       flex:2;
@@ -650,14 +630,13 @@ function PageClient() {
       color:#fff;
       font-weight:900;
       cursor:pointer;
+      white-space:nowrap;
     }
 
-    /* =========================
-      11) Responsive (Tablet)
-      ========================= */
     @media (max-width:768px){
       .header-content{ padding:0 16px; }
-      .logo{ font-size:15px; letter-spacing:.5px; }
+      /* ✅ 폰트 크기 "변경 없음" 요청이므로 logo 크기는 유지, 대신 레이아웃만 맞춤 */
+      .logo{ white-space:nowrap; }
       .user-info{ font-size:11px; }
 
       .login-box{ margin:60px auto; padding:24px; }
@@ -671,33 +650,101 @@ function PageClient() {
 
       .date-btn{ font-size:13px; padding:16px 14px; border-radius:12px; }
 
-      .status-badge{
-        font-size:11px;
-        padding:6px 10px;
-        justify-self:start;
-        width:fit-content;
-      }
+      .status-badge{ font-size:11px; padding:6px 10px; }
 
+      /* ✅ 여기 원래 30/22로 커져있던 부분은 과도함 → 정상값 */
       .modal-title{ font-size:15px; }
       .quick-actions button{ font-size:13px; padding:10px 6px; }
     }
 
-    /* =========================
-      12) Responsive (Mobile: Logout Button)
-      ========================= */
+    /* ✅ 반응형(<=560px)에서만: 로고 2줄 (폰트 크기 그대로) */
     @media (max-width:560px){
-      .btn-logout{
-        height:28px;
-        padding:0 10px;
-        font-size:12px;
-        border-radius:8px;
+      .header{ padding:12px 0; }
+      .header-content{
+        padding:0 14px;
+        align-items:flex-start;
+        gap:10px;
       }
-    }
-    `,
-      []
-    );
 
-  const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
+      /* ✅ 로고: 2줄로만 변경, 크기는 그대로(32px 유지) */
+      .logo{
+        white-space:normal;
+        line-height:1.05;
+        max-width:54vw;
+        letter-spacing:1px;
+      }
+      .logo-line{ display:block; }
+
+      .header-right{
+        align-items:flex-end;
+        white-space:nowrap;
+      }
+
+      /* ✅ 우측 메타: 줄바꿈 안함 */
+      .user-info{
+        font-size:11px;
+        white-space:nowrap;
+      }
+
+      .btn-logout{
+        width:64px;
+        height:36px;
+        padding:0;
+        font-size:11px;
+        border-radius:10px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        white-space:nowrap;
+        word-break:keep-all;
+        min-width:0;
+      }
+
+      .main-content h2{ font-size:18px !important; }
+      .main-content p{
+        font-size:12px;
+        margin-top:6px !important;
+        margin-bottom:14px !important;
+      }
+
+      .form-input{
+        font-size:12px;
+        padding:10px 12px;
+        border-radius:10px;
+      }
+
+      .category-section{ padding:14px; margin-bottom:14px; }
+      .category-title{ font-size:14px; margin-bottom:12px; }
+      .category-icon{ width:26px; height:26px; margin-right:10px; flex:0 0 26px; }
+
+      .item-row{ padding:14px; gap:10px; }
+      .item-name{ font-size:12px; }
+
+      .date-btn{
+        font-size:12px;
+        padding:12px 12px;
+        border-radius:12px;
+      }
+      .status-badge{
+        font-size:10px;
+        padding:6px 10px;
+        border-radius:16px;
+      }
+
+      .btn-primary{
+        font-size:12px;
+        padding:12px;
+        border-radius:10px;
+        letter-spacing:.5px;
+      }
+      .save-section{ padding:14px; bottom:12px; }
+    }
+  `,
+    []
+  );
+
+  const API_BASE_URL =
+    "https://inventory-api-231876330057.asia-northeast3.run.app";
 
   /* ---------------------------
    *  로그인 상태
@@ -711,7 +758,7 @@ function PageClient() {
   const [saving, setSaving] = useState(false);
 
   /* =========================================================
-   *  6-A) localStorage 기반 로그인 복원 (새로고침 유지)
+   *  localStorage 기반 로그인 복원 (새로고침 유지)
    * ========================================================= */
   useEffect(() => {
     try {
@@ -740,7 +787,7 @@ function PageClient() {
   }, []);
 
   /* =========================================================
-   *  6-B) URL 파라미터가 있으면 우선 적용 + localStorage 갱신
+   *  URL 파라미터 우선 적용 + localStorage 갱신
    * ========================================================= */
   useEffect(() => {
     if (!urlStoreCode || !/^1410\d{3}$/.test(urlStoreCode)) return;
@@ -763,7 +810,7 @@ function PageClient() {
   }, [urlStoreCode, urlStoreName]);
 
   /* =========================================================
-   *  6-C) loggedIn인데 URL에 파라미터 없으면 주입 (URL 유지)
+   *  loggedIn인데 URL 파라미터 없으면 주입 (URL 유지)
    * ========================================================= */
   useEffect(() => {
     if (!loggedIn) return;
@@ -799,7 +846,7 @@ function PageClient() {
   const [activeLabel, setActiveLabel] = useState("");
   const [draftDate, setDraftDate] = useState("");
 
-  const todayText = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayText = useMemo(() => ymdTodayKST(), []);
 
   const storageKey = useMemo(() => {
     const code = storeCode.trim();
@@ -821,7 +868,7 @@ function PageClient() {
     } catch {}
 
     setLoadingCategories(true);
-    fetch(`${API_BASE}/categories`, { cache: "no-store" })
+    fetch(`${API_BASE_URL}/categories`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         const cats = data.categories || [];
@@ -871,7 +918,9 @@ function PageClient() {
     if (!categories) return [];
 
     const filtered = categories
-      .filter((cat) => selectedCategory === "ALL" || cat.category === selectedCategory)
+      .filter(
+        (cat) => selectedCategory === "ALL" || cat.category === selectedCategory
+      )
       .map((cat) => ({
         ...cat,
         items: (cat.items || []).filter((item) =>
@@ -899,7 +948,9 @@ function PageClient() {
     const name = storeName.trim();
 
     if (!/^1410\d{3}$/.test(code)) {
-      setError("매장코드는 1410으로 시작하는 7자리 숫자만 가능합니다. (예: 1410760)");
+      setError(
+        "매장코드는 1410으로 시작하는 7자리 숫자만 가능합니다. (예: 1410760)"
+      );
       setSuccess("");
       return;
     }
@@ -923,7 +974,6 @@ function PageClient() {
     setSuccess("로그인 성공");
     setLoggedIn(true);
 
-    // URL도 같이 유지
     const q = new URLSearchParams();
     q.set("store_code", code);
     q.set("store_name", name);
@@ -937,8 +987,7 @@ function PageClient() {
     if (!dateStr) return { text: "입력 필요", cls: "status-ok" };
 
     const expiry = parseYMD(dateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = parseYMD(todayText);
 
     const diff = Math.ceil((expiry.getTime() - today.getTime()) / 86400000);
     if (diff < 0) return { text: "기한 만료", cls: "status-danger" };
@@ -991,75 +1040,75 @@ function PageClient() {
     closePicker();
   }, [activeKey, draftDate, closePicker]);
 
-    /* =========================================================
-    *  저장(서버 bulk 저장)
-    * ========================================================= */
-    const onSave = useCallback(async () => {
-      try {
-        setError("");
-        setSuccess("");
+  /* =========================================================
+   *  저장(서버 bulk 저장)
+   * ========================================================= */
+  const onSave = useCallback(async () => {
+    try {
+      setError("");
+      setSuccess("");
 
-        const store_code = storeCode.trim();
-        if (!store_code) {
-          setError("매장코드가 없습니다.");
-          return;
-        }
-
-        const rawEntries = Object.entries(dates)
-          .filter(([_, v]) => Boolean(v))
-          .map(([k, v]) => {
-            const key = String(k);
-            const sep = key.indexOf("__");
-            if (sep < 0) return null;
-
-            const category = key.slice(0, sep).trim();
-            const item_name = key.slice(sep + 2).trim();
-            const expiry_date = String(v).slice(0, 10);
-
-            if (!category || !item_name || !expiry_date) return null;
-            return { category, item_name, expiry_date };
-          })
-          .filter(Boolean);
-
-        if (rawEntries.length === 0) {
-          setError("저장할 항목이 없습니다. 유효기간을 먼저 입력해주세요.");
-          return;
-        }
-
-        // item_name 기준 dedupe
-        const uniqMap = new Map();
-        for (const e of rawEntries) {
-          const dedupeKey = `${e.item_name}`;
-          uniqMap.set(dedupeKey, e);
-        }
-        const entries = Array.from(uniqMap.values());
-
-        setSaving(true);
-        const res = await fetch(`${API_BASE}/api/expiry-entries/bulk`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            store_code,
-            input_date: ymdTodayKST(),
-            entries,
-          }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok || !data.ok) {
-          setError(data?.error || "저장에 실패했습니다.");
-          return;
-        }
-
-        setSuccess(`저장 완료 (${data.count}건)`);
-        setTimeout(() => setSuccess(""), 1500);
-      } catch (e) {
-        setError(e?.message || "저장 중 오류가 발생했습니다.");
-      } finally {
-        setSaving(false);
+      const store_code = storeCode.trim();
+      if (!store_code) {
+        setError("매장코드가 없습니다.");
+        return;
       }
-    }, [dates, storeCode]);
+
+      const rawEntries = Object.entries(dates)
+        .filter(([_, v]) => Boolean(v))
+        .map(([k, v]) => {
+          const key = String(k);
+          const sep = key.indexOf("__");
+          if (sep < 0) return null;
+
+          const category = key.slice(0, sep).trim();
+          const item_name = key.slice(sep + 2).trim();
+          const expiry_date = String(v).slice(0, 10);
+
+          if (!category || !item_name || !expiry_date) return null;
+          return { category, item_name, expiry_date };
+        })
+        .filter(Boolean);
+
+      if (rawEntries.length === 0) {
+        setError("저장할 항목이 없습니다. 유효기간을 먼저 입력해주세요.");
+        return;
+      }
+
+      // item_name 기준 dedupe
+      const uniqMap = new Map();
+      for (const e of rawEntries) {
+        const dedupeKey = `${e.item_name}`;
+        uniqMap.set(dedupeKey, e);
+      }
+      const entries = Array.from(uniqMap.values());
+
+      setSaving(true);
+      const res = await fetch(`${API_BASE_URL}/api/expiry-entries/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          store_code,
+          input_date: todayText,
+          entries,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        setError(data?.error || "저장에 실패했습니다.");
+        return;
+      }
+
+      setSuccess(`저장 완료 (${data.count}건)`);
+      setTimeout(() => setSuccess(""), 1500);
+    } catch (e) {
+      setError(e?.message || "저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }, [dates, storeCode, todayText]);
 
   /* =========================================================
    *  Render
@@ -1071,13 +1120,22 @@ function PageClient() {
       {/* Header */}
       <div className="header">
         <div className="header-content">
-          <div className="logo">KFC OPERATIONS - 자재유통기한 관리</div>
+          {/* ✅ 반응형(<=560px)에서만 2줄 (폰트 크기 동일) */}
+          <div className="logo">
+            <span className="logo-line">KFC OPERATIONS -</span>{" "}
+            <span className="logo-line">자재유통기한 관리</span>
+          </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="header-right">
+            {/* ✅ "2026-01-24 1410760 코엑스MALL" (구분자는 공백) */}
             <div className="user-info">
-              {loggedIn
-                ? `${todayText} | ${storeCode.trim()} | ${storeName.trim()}`
-                : ""}
+              {loggedIn ? (
+                <span>
+                  {todayText} {storeCode.trim()} {storeName.trim()}
+                </span>
+              ) : (
+                ""
+              )}
             </div>
 
             {loggedIn && (
@@ -1085,15 +1143,10 @@ function PageClient() {
                 type="button"
                 className="btn-logout"
                 onClick={() => {
-                  // 1) 로그인 정보 삭제
                   localStorage.removeItem("kfc_store_info");
-
-                  // 2) 로그인 상태 초기화
                   setLoggedIn(false);
                   setStoreCode("");
                   setStoreName("");
-
-                  // 3) 최초 화면으로 이동 (URL 파라미터 제거)
                   router.replace("/");
                 }}
               >
@@ -1189,7 +1242,8 @@ function PageClient() {
               <div className="category-section" key={ci}>
                 <div className="category-title">
                   <div className="category-icon">
-                    {CATEGORY_ICON_MAP[category.category] ?? CATEGORY_ICON_MAP["기타"]}
+                    {CATEGORY_ICON_MAP[category.category] ??
+                      CATEGORY_ICON_MAP["기타"]}
                   </div>
                   <div>{category.category}</div>
                 </div>
@@ -1267,10 +1321,16 @@ function PageClient() {
                 <button type="button" onClick={() => setDraftDate(todayText)}>
                   오늘
                 </button>
-                <button type="button" onClick={() => setDraftDate(addDays(draftDate, 7))}>
+                <button
+                  type="button"
+                  onClick={() => setDraftDate(addDays(draftDate, 7))}
+                >
                   +7일
                 </button>
-                <button type="button" onClick={() => setDraftDate(addDays(draftDate, 30))}>
+                <button
+                  type="button"
+                  onClick={() => setDraftDate(addDays(draftDate, 30))}
+                >
                   +30일
                 </button>
               </div>
