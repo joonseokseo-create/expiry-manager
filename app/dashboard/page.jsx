@@ -136,11 +136,11 @@ function DashboardPageInner() {
       background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
       padding:14px 20px;
       color:#fff;
-      font-weight:900; /* ✅ 헤더: Pretendard Black */
+      font-weight:700; /* ✅ 헤더: Pretendard Black */
     }
     /* ✅ 헤더 내부 전부 Black 강제 */
     .header, .header *{
-      font-weight:900;
+      font-weight:700;
     }
 
     .headerInner{
@@ -316,14 +316,21 @@ function DashboardPageInner() {
         white-space:normal;
       }
 
-      /* ✅ 날짜/코드/매장명 3줄 고정 */
-      .todayText{
-        font-size:10px;
-        white-space:normal;
-        line-height:1.25;
-        text-align:right;
-      }
-      .headerMetaLine{display:block;}
+    /* ✅ 날짜 | 매장코드 | 매장명 → 왼쪽 하단 / 한 줄 고정 */
+    .todayText{
+      grid-column:1 / 2;
+      grid-row:2 / 3;
+
+      font-size:10px;
+      line-height:1.2;
+      text-align:left;
+
+      white-space:nowrap;        /* ✅ 무조건 한 줄 */
+      overflow:hidden;           /* ✅ 넘치면 숨김 */
+      text-overflow:ellipsis;    /* ✅ 말줄임 처리 */
+      max-width:100%;
+    }
+
 
       /* ✅ 저장/입력 버튼: 세로 + 더 작게 */
       .headerActions{

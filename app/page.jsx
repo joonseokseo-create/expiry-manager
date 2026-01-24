@@ -307,11 +307,6 @@ function PageClient() {
    * --------------------------- */
   const styles = useMemo(
   () => `
-  /* =========================
-   *  Font (Pretendard 강제 적용)
-   *  - CSS에서 font-family만 써도, 폰트가 "로드"되어 있지 않으면 적용 안됨
-   *  - @import로 Pretendard를 불러와서 헤더 폰트 깨짐 해결
-   * ========================= */
   @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.css");
 
   :root{
@@ -323,7 +318,7 @@ function PageClient() {
     padding:0;
     box-sizing:border-box;
     font-family:var(--font-sans);
-    font-weight:500;
+    font-weight:700; /* ✅ 전체 기본: Pretendard(500) */
   }
   body{
     background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);
@@ -331,16 +326,9 @@ function PageClient() {
   }
 
   /* =========================
-   *  Header (폰트/레이아웃)
+   *  Header
+   *  ✅ Black(900) 강제 제거 → Pretendard 기본(500)로 통일
    * ========================= */
-  .header,
-  .logo,
-  .user-info,
-  .btn-logout{
-    font-family:var(--font-sans);
-    font-weight:900;
-  }
-
   .header{
     background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
     padding:20px 0;
@@ -364,6 +352,7 @@ function PageClient() {
     text-shadow:2px 2px 4px rgba(0,0,0,.3);
     white-space:nowrap;
     line-height:1.05;
+    font-weight:500; /* ✅ 로고도 500 */
   }
   .logo-line{ display:inline; }
 
@@ -375,17 +364,17 @@ function PageClient() {
     flex:0 0 auto;
   }
 
-  /* ✅ 매장명 안 잘리게: 기본은 줄바꿈 허용 + 전체 표시 */
+  /* ✅ 매장명 전체 표시 */
   .user-info{
     color:#FFF1E2;
     font-size:18px;
-    font-weight:900;
-    white-space:normal;         /* ✅ 줄바꿈 허용 */
+    white-space:normal;
     word-break:keep-all;
-    overflow-wrap:anywhere;     /* ✅ 긴 매장명도 이탈 방지 */
+    overflow-wrap:anywhere;
     text-align:right;
     line-height:1.2;
-    max-width:520px;            /* ✅ PC에서 너무 길면 우측 영역 제한 */
+    max-width:520px;
+    font-weight:500; /* ✅ 500 */
   }
 
   .btn-logout{
@@ -399,13 +388,11 @@ function PageClient() {
     box-shadow:0 3px 10px rgba(0,0,0,.12);
     white-space:nowrap;
     min-width:72px;
+    font-weight:500; /* ✅ 500 */
   }
   .btn-logout:hover{ filter:brightness(.95); }
   .btn-logout:active{ transform:translateY(1px); }
 
-  /* =========================
-   *  Layout / Login / Main
-   * ========================= */
   .container{
     max-width:1200px;
     margin:40px auto;
@@ -686,53 +673,58 @@ function PageClient() {
     .quick-actions button{ font-size:13px; padding:10px 6px; }
   }
 
-  /* ✅ Mobile (<=560px) */
+    /* ✅ Mobile (<=560px) */
   @media (max-width:560px){
     .header{ padding:12px 0; }
     .header-content{
       padding:0 10px;
       align-items:flex-start;
       gap:10px;
-      flex-wrap:wrap;          /* ✅ 우측이 길어도 아래로 자연스럽게 내려감 */
+      flex-wrap:wrap;
     }
 
-    /* 로고는 2줄 */
     .logo{
       white-space:normal;
       line-height:1.05;
       max-width:100%;
       letter-spacing:1px;
       font-size:24px;
+      font-weight:500;
     }
     .logo-line{ display:block; }
 
-    /* ✅ 모바일: 우측 전체를 한 줄 점유 → 매장명 안 가려짐 */
+    /* ✅ user-info는 좌측, 로그아웃은 우측으로 */
     .header-right{
       width:100%;
-      align-items:flex-start;
-      gap:6px;
+      display:flex;
+      flex-direction:row;          /* 핵심 */
+      align-items:center;
+      justify-content:space-between;/* 핵심 */
+      gap:10px;
       margin-top:6px;
     }
 
-    /* ✅ 모바일: 매장명 전체 표시 */
     .user-info{
+      flex:1 1 auto;               /* 남는 공간 차지 */
       font-size:11px;
-      max-width:100%;
       white-space:normal;
       overflow:visible;
       text-overflow:clip;
       text-align:left;
       line-height:1.25;
+      font-weight:500;
     }
 
-    /* ✅ 모바일: 로그아웃 버튼은 아래로 */
     .btn-logout{
+      margin-top:0;                /* 기존 아래 여백 제거 */
+      margin-left:auto;            /* 우측 고정 */
       width:92px;
       min-width:92px;
       height:32px;
       font-size:11px;
       border-radius:10px;
-      margin-top:2px;
+      font-weight:500;
+      flex:0 0 auto;
     }
 
     .main-content h2{ font-size:18px !important; }
