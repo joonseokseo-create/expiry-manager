@@ -1040,7 +1040,7 @@ function PageClient() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             store_code,
-            input_date: todayText,
+            input_date: ymdTodayKST(),
             entries,
           }),
         });
@@ -1059,7 +1059,7 @@ function PageClient() {
       } finally {
         setSaving(false);
       }
-    }, [dates, storeCode, todayText]);
+    }, [dates, storeCode]);
 
   /* =========================================================
    *  Render
