@@ -338,97 +338,146 @@ function DashboardPageInner() {
       .panel{max-height:none;}
     }
 
-    @media (max-width:560px){
-      .header{padding:10px 12px;}
-      .headerInner{gap:10px;align-items:flex-start;}
+ @media (max-width:560px){
+  .header{padding:10px 12px;}
 
-      .logo{
-        font-size:14px;
-        max-width:52vw;
-        white-space:nowrap;
-        overflow:hidden;
-        text-overflow:ellipsis;
-        letter-spacing:0;
-      }
+  /* ✅ 헤더 폭 넘침 방지 + 정렬 안정화 */
+  .headerInner{
+    gap:10px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
 
-      .headerRight{
-        flex-direction:column;
-        align-items:flex-end;
-        gap:8px;
-        white-space:normal;
-      }
+  /* ✅ 모바일 타이틀: 2줄 허용(ellipsis 제거) */
+  .logo{
+    flex:1 1 60%;
+    min-width:0;
+    max-width:56vw;
+    font-size:18px;
+    white-space:normal;       /* ✅ 2줄 허용 */
+    overflow:visible;
+    text-overflow:unset;
+    line-height:1.15;
+    letter-spacing:0;
+    word-break:keep-all;
+  }
 
-      .todayText{
-        font-size:10px;
-        line-height:1.2;
-        text-align:left;
-        white-space:nowrap;
-        overflow:hidden;
-        text-overflow:ellipsis;
-        max-width:100%;
-      }
+  .headerRight{
+    flex:1 1 40%;
+    min-width:0;
+    width:100%;
+    flex-direction:column;
+    align-items:flex-end;
+    gap:6px;
+    white-space:normal;
+  }
 
-      .headerActions{
-        flex-direction:column;
-        gap:6px;
-        width:78px;
-        align-items:stretch;
-      }
-      .headerBtn{
-        height:26px;
-        padding:0 8px;
-        font-size:10px;
-        border-radius:9px;
-        min-width:0;
-      }
+  /* ✅ 날짜/매장정보: 한 줄 고정 + 말줄임 */
+  .todayText{
+    width:100%;
+    max-width:100%;
+    font-size:10px;
+    line-height:1.2;
+    text-align:left;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
 
-      .container{padding:0 12px;margin:14px auto;}
-      .kpiGrid{grid-template-columns:1fr;gap:10px;}
-      .kpiCard{padding:14px;}
-      .kpiTitle{font-size:11px;}
-      .kpiValue{font-size:26px;}
+  /* ✅ 버튼: 더 슬림하게 */
+  .headerActions{
+    flex-direction:column;
+    gap:5px;
+    width:72px;
+    align-items:stretch;
+    flex:0 0 auto;
+  }
+  .headerBtn{
+    height:24px;
+    padding:0 6px;
+    font-size:10px;
+    border-radius:8px;
+    min-width:0;
+  }
 
-      .filterBox{padding:10px;}
-      .row{grid-template-columns:64px 1fr;}
-      .rangeRow{grid-template-columns:72px 1fr;}
-      .control{height:34px;line-height:34px;font-size:12px;padding:0 10px;border-radius:9px;}
-      input[type="date"].control{height:34px;line-height:34px;}
-      select.control{height:34px;line-height:34px;}
-      .btnSecondary{height:34px;font-size:11px;border-radius:9px;}
+  .container{padding:0 12px;margin:14px auto;}
+  .kpiGrid{grid-template-columns:1fr;gap:10px;}
+  .kpiCard{padding:14px;}
+  .kpiTitle{font-size:11px;}
+  .kpiValue{font-size:26px;}
 
-      .hideCategoryOnMobile{display:none !important;}
+  /* ✅ 필터: 라벨/컨트롤 간격 축소 + 기간/지역/매장 정렬 통일 */
+  .filterBox{padding:8px;}
+  .filterRows{gap:8px;}
 
-      .panel{padding:12px;}
-      .panelTitle{font-size:13px;margin-bottom:10px;}
+  .row,
+  .rangeRow{
+    display:grid;
+    grid-template-columns:56px 1fr;  /* ✅ 64/72 → 56 통일 (더 왼쪽) */
+    gap:6px;                          /* ✅ 라벨-컨트롤 거리 축소 */
+    align-items:center;
+  }
 
-      table{table-layout:fixed;}
-      th,td{
-        font-size:10px;
-        padding:6px 6px;
-        white-space:nowrap;
-        overflow:hidden;
-        text-overflow:ellipsis;
-      }
+  .rowLabel{
+    font-size:12px;
+    white-space:nowrap;
+    line-height:1;
+  }
 
-      /* 모바일에서 남은일수(7번째) 숨김 */
-      table th:nth-child(7),
-      table td:nth-child(7){ display:none; }
+  .control{
+    height:32px;
+    line-height:32px;
+    font-size:12px;
+    padding:0 8px;     /* ✅ 컨트롤 안쪽 여백 축소 */
+    border-radius:9px;
+  }
+  input[type="date"].control{height:32px;line-height:32px;}
+  select.control{height:32px;line-height:32px;}
 
-      /* 모바일: 매장코드(2번째) 숨김 */
-      table th:nth-child(2),
-      table td:nth-child(2){ display:none; }
+  /* ✅ 기간 2개 입력이 한 줄에서 균등하게 */
+  .rangeControls{
+    display:flex;
+    gap:6px;
+  }
+  .rangeControls .control{
+    flex:1;
+    min-width:0;
+  }
 
-      /* 모바일: 카테고리(4번째) 숨김 */
-      table th:nth-child(4),
-      table td:nth-child(4){ display:none; }
+  .btnSecondary{height:30px;font-size:10px;border-radius:8px;}
 
-      /* ✅ 모바일 폭 재배분 (입력일/매장명/자재명/유통기한) */
-      th:nth-child(1),td:nth-child(1){width:26%;}
-      th:nth-child(3),td:nth-child(3){width:24%;}
-      th:nth-child(5),td:nth-child(5){width:24%;}
-      th:nth-child(6),td:nth-child(6){width:26%;}
-    }
-  `;
+  .hideCategoryOnMobile{display:none !important;}
+
+  .panel{padding:12px;}
+  .panelTitle{font-size:13px;margin-bottom:10px;}
+
+  table{table-layout:fixed;}
+  th,td{
+    font-size:10px;
+    padding:6px 6px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  /* 모바일에서 남은일수(7번째) 숨김 */
+  table th:nth-child(7),
+  table td:nth-child(7){display:none;}
+
+  /* 모바일: 매장코드(2번째) 숨김 */
+  table th:nth-child(2),
+  table td:nth-child(2){display:none;}
+
+  /* 모바일: 카테고리(4번째) 숨김 */
+  table th:nth-child(4),
+  table td:nth-child(4){display:none;}
+
+  /* ✅ 모바일 폭 재배분 (입력일/매장명/자재명/유통기한) */
+  th:nth-child(1),td:nth-child(1){width:26%;}
+  th:nth-child(3),td:nth-child(3){width:24%;}
+  th:nth-child(5),td:nth-child(5){width:24%;}
+  th:nth-child(6),td:nth-child(6){width:26%;}
+}
 
   /* ---------------------------------------------------------
    *  3-F) 데이터 가져오기 (기간 조회: 프론트에서 날짜별 호출 후 합치기)
@@ -733,7 +782,7 @@ function DashboardPageInner() {
       {/* Header */}
       <div className="header">
         <div className="headerInner">
-          <div className="logo">KFC OPERATIONS | 유통기한 DASHBOARD</div>
+          <div className="logo">KFC | OPERATIONS | 유통기한 | DASHBOARD</div>
 
           <div className="headerRight">
             <div className="todayText">
