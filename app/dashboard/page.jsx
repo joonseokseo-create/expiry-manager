@@ -16,8 +16,8 @@ export const dynamic = "force-dynamic";
 /* =========================================================
  *  0) 고정 설정
  * ========================================================= */
-const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
-const MAX_RANGE_DAYS = 7; // ✅ 조회기간 최대 7일
+const API_BASE =
+  "https://inventory-api-231876330057.asia-northeast3.run.app";
 
 /* =========================================================
  *  1) 날짜/표시 유틸 (KST 고정)
@@ -28,52 +28,8 @@ function ymdToday() {
   return kst.toISOString().slice(0, 10);
 }
 
-function parseYMD(ymd) {
-  const s = String(ymd || "").slice(0, 10);
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  const dt = new Date(y, mo - 1, d);
-  if (isNaN(dt.getTime())) return null;
-  return dt;
-}
-
-function diffDaysInclusive(fromYmd, toYmd) {
-  const s0 = parseYMD(fromYmd);
-  const e0 = parseYMD(toYmd);
-  if (!s0 || !e0) return null;
-
-  const s = s0.getTime() <= e0.getTime() ? s0 : e0;
-  const e = s0.getTime() <= e0.getTime() ? e0 : s0;
-
-  return Math.floor((e.getTime() - s.getTime()) / 86400000) + 1;
-}
-
-function buildDateListInclusive(fromYmd, toYmd) {
-  const s0 = parseYMD(fromYmd);
-  const e0 = parseYMD(toYmd);
-  if (!s0 || !e0) return [];
-
-  const s = s0.getTime() <= e0.getTime() ? s0 : e0;
-  const e = s0.getTime() <= e0.getTime() ? e0 : s0;
-
-  const out = [];
-  let cur = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-  const end = new Date(e.getFullYear(), e.getMonth(), e.getDate());
-
-  while (cur.getTime() <= end.getTime()) {
-    const y = cur.getFullYear();
-    const mm = String(cur.getMonth() + 1).padStart(2, "0");
-    const dd = String(cur.getDate()).padStart(2, "0");
-    out.push(`${y}-${mm}-${dd}`);
-    cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
-  }
-  return out;
-}
-
-function formatExpiryYMD(v) {
+/** YYYY-MM-DD로 무조건 정규화 (입력일/유통기한 모두 동일 포맷) */
+function toYMD(v) {
   if (!v) return "";
   const raw = String(v);
 
@@ -89,6 +45,33 @@ function formatExpiryYMD(v) {
   }
 
   return raw.slice(0, 10);
+}
+
+function addDays(ymd, delta) {
+  const m = String(ymd || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(y, mo - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+function diffDaysInclusive(startYMD, endYMD) {
+  const s = toYMD(startYMD);
+  const e = toYMD(endYMD);
+  if (!s || !e) return 0;
+  const [sy, sm, sd] = s.split("-").map(Number);
+  const [ey, em, ed] = e.split("-").map(Number);
+  const sDate = new Date(sy, sm - 1, sd);
+  const eDate = new Date(ey, em - 1, ed);
+  const ms = eDate.getTime() - sDate.getTime();
+  if (isNaN(ms)) return 0;
+  return Math.floor(ms / (24 * 60 * 60 * 1000)) + 1; // inclusive
 }
 
 /* =========================================================
@@ -137,32 +120,40 @@ function DashboardPageInner() {
   }, [urlStoreCode, urlStoreName]);
 
   /* ---------------------------------------------------------
-   *  3-B) 화면 필터 상태 (기간 조회)
+   *  3-B) 화면 필터 상태 (기간)
    * --------------------------------------------------------- */
-  const [dateFrom, setDateFrom] = useState(ymdToday());
-  const [dateTo, setDateTo] = useState(ymdToday());
+  const today = ymdToday();
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+
   const [region, setRegion] = useState("");
   const [storeCode, setStoreCode] = useState("");
   const [category, setCategory] = useState("");
 
   /* ---------------------------------------------------------
-   *  3-C) 서버 데이터 상태
+   *  3-C) 서버 데이터 상태 (기간용 Raw + 화면 표시용)
    * --------------------------------------------------------- */
+  const [rawSummary, setRawSummary] = useState([]);
+  const [rawItems, setRawItems] = useState([]);
+
   const [summary, setSummary] = useState([]);
   const [items, setItems] = useState([]);
+
   const [loading, setLoading] = useState(false);
 
   /* ---------------------------------------------------------
    *  3-D) 성능 최적화(캐시/취소/transition)
    * --------------------------------------------------------- */
   const cacheRef = useRef(new Map());
+  const dayCacheRef = useRef(new Map()); // key: ymd|scope -> {daySummary, dayItems}
   const abortRef = useRef(null);
   const [isPending, startTransition] = useTransition();
 
+  // 7일 초과 알림 "중복 방지"
+  const alertedRef = useRef({ key: "" });
+
   /* ---------------------------------------------------------
-   *  3-E) CSS
-   *   - 기간 입력 2개를 한 행 + 간격 축소
-   *   - 매장명 컬럼 폭 확장(최소 12글자)
+   *  3-E) 화면 스타일(CSS 문자열)
    * --------------------------------------------------------- */
   const styles = `
     *{
@@ -170,39 +161,47 @@ function DashboardPageInner() {
       font-weight:500;
       box-sizing:border-box;
     }
-
     .page{min-height:100vh;background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);}
 
+    /* Header */
     .header{
       background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
       padding:14px 20px;
       color:#fff;
       font-weight:700;
+      overflow:hidden;
     }
-    .header, .header *{ font-weight:700; }
-
+    .header, .header *{font-weight:700;}
     .headerInner{
       display:flex;
       justify-content:space-between;
       align-items:center;
       gap:12px;
+      width:100%;
+      min-width:0;
+      flex-wrap:nowrap;
     }
 
+    /* Title */
     .logo{
-      font-size:22px;
+      font-size:26px;
       font-weight:900;
-      letter-spacing:.4px;
-      white-space:nowrap;
-      line-height:1.1;
+      letter-spacing:.6px;
+      line-height:1.05;
+      min-width:0;
     }
+    .logoTop{display:block;}
+    .logoBottom{display:block;}
 
+    /* Right */
     .headerRight{
       display:flex;
       align-items:center;
       gap:10px;
       white-space:nowrap;
+      min-width:0;
+      flex-shrink:0;
     }
-
     .todayText{
       font-size:14px;
       font-weight:900;
@@ -211,13 +210,16 @@ function DashboardPageInner() {
       word-break:keep-all;
       text-align:right;
       line-height:1.2;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:48vw;
     }
-
     .headerActions{
       display:flex;
       flex-direction:row;
       gap:8px;
       align-items:center;
+      flex-shrink:0;
     }
     .headerBtn{
       display:inline-flex;
@@ -242,10 +244,12 @@ function DashboardPageInner() {
     .btnYellow:hover{filter:brightness(0.96);}
     .headerBtn:disabled{opacity:.55;cursor:not-allowed;}
 
+    /* Layout */
     .container{max-width:1400px;margin:22px auto;padding:0 16px;}
     .grid{display:grid;grid-template-columns:420px 1fr;gap:18px;align-items:start;}
     .leftCol{display:flex;flex-direction:column;gap:12px;}
 
+    /* KPI */
     .kpiGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
     .kpiCard{
       background:#fff;border-radius:14px;padding:18px;
@@ -255,6 +259,7 @@ function DashboardPageInner() {
     .kpiTitle{font-size:12px;font-weight:900;color:#666;}
     .kpiValue{font-size:32px;font-weight:900;color:#C62828;margin-top:6px;line-height:1;}
 
+    /* Panel */
     .panel{
       background:#fff;border-radius:14px;padding:18px;
       box-shadow:0 4px 20px rgba(0,0,0,.08);
@@ -263,26 +268,13 @@ function DashboardPageInner() {
     }
     .panelTitle{font-size:16px;font-weight:900;margin-bottom:12px;}
 
+    /* Filters */
     .filterBox{background:#fff;border-radius:14px;padding:14px;box-shadow:0 4px 16px rgba(0,0,0,.08);}
     .filterTitle{font-weight:900;color:#A3080B;margin-bottom:10px;font-size:12px;}
     .filterRows{display:flex;flex-direction:column;gap:10px;}
     .row{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;}
+    .rangeRow{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;}
     .rowLabel{font-size:13px;font-weight:900;color:#444;white-space:nowrap;line-height:1;}
-
-    /* ✅ 기간 2개 한 행 + 간격 축소 + 구분문자 제거 */
-    .rangeRow{
-      display:grid;
-      grid-template-columns:64px 1fr;
-      gap:10px;
-      align-items:center;
-    }
-    .rangeControls{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:6px; /* ✅ 간격 축소 */
-      align-items:center;
-    }
-
     .control{
       width:100%;
       height:40px;
@@ -295,10 +287,19 @@ function DashboardPageInner() {
       font-size:14px;
       line-height:40px;
       appearance:none;
+      min-width:0;
     }
     .control:focus{border-color:#A3080B;box-shadow:0 0 0 3px rgba(163,8,11,.08);}
     input[type="date"].control{height:40px;line-height:40px;padding:0 12px;}
     select.control{height:40px;line-height:40px;}
+
+    .rangeControls{
+      display:flex;
+      gap:6px;
+      align-items:center;
+      min-width:0;
+    }
+    .rangeControls .control{flex:1;}
 
     .btnRow{display:flex;gap:10px;margin-top:12px;}
     .btnSecondary{
@@ -307,6 +308,7 @@ function DashboardPageInner() {
       font-size:12px;
     }
 
+    /* Table */
     table{width:100%;border-collapse:collapse;}
     th,td{
       padding:10px 8px;
@@ -315,6 +317,8 @@ function DashboardPageInner() {
       font-size:13px;
       vertical-align:top;
       white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
     th{
       font-weight:900;color:#444;background:#fafafa;
@@ -323,192 +327,156 @@ function DashboardPageInner() {
     .dangerText{color:#C62828;font-weight:900;}
     .muted{color:#777;font-weight:900;}
 
-    /* ✅ 매장명(3번째) 폭 확대: 최소 12글자 */
-    table th:nth-child(3),
-    table td:nth-child(3){
-      min-width:12ch;
-      max-width:18ch;
-    }
+    /* PC 매장명 폭 12글자 확보 */
+    .storeNameCell{max-width:12ch;width:12ch;}
 
     @media (max-width:980px){
       .grid{grid-template-columns:1fr;}
       .header{padding:12px 16px;}
-      .logo{font-size:18px;white-space:nowrap;}
+      .logo{font-size:22px;}
       .container{margin:16px auto;}
       .panel{max-height:none;}
+      .todayText{max-width:60vw;}
     }
 
- @media (max-width:560px){
-  .header{padding:10px 12px;}
+    @media (max-width:560px){
+      .header{padding:10px 12px;}
+      .headerInner{gap:8px;align-items:flex-start;min-width:0;}
 
-  /* ✅ 헤더 폭 넘침 방지 + 정렬 안정화 */
-  .headerInner{
-    gap:10px;
-    align-items:flex-start;
-    flex-wrap:wrap;
-  }
-
-  /* ✅ 모바일 타이틀: 2줄 허용(ellipsis 제거) */
-  .logo{
-    flex:1 1 60%;
-    min-width:0;
-    max-width:56vw;
-    font-size:18px;
-    white-space:normal;       /* ✅ 2줄 허용 */
-    overflow:visible;
-    text-overflow:unset;
-    line-height:1.15;
-    letter-spacing:0;
-    word-break:keep-all;
-  }
-
-  .headerRight{
-    flex:1 1 40%;
-    min-width:0;
-    width:100%;
-    flex-direction:column;
-    align-items:flex-end;
-    gap:6px;
-    white-space:normal;
-  }
-
-  /* ✅ 날짜/매장정보: 한 줄 고정 + 말줄임 */
-  .todayText{
-    width:100%;
-    max-width:100%;
-    font-size:10px;
-    line-height:1.2;
-    text-align:left;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-
-  /* ✅ 버튼: 더 슬림하게 */
-  .headerActions{
-    flex-direction:column;
-    gap:5px;
-    width:72px;
-    align-items:stretch;
-    flex:0 0 auto;
-  }
-  .headerBtn{
-    height:24px;
-    padding:0 6px;
-    font-size:10px;
-    border-radius:8px;
-    min-width:0;
-  }
-
-  .container{padding:0 12px;margin:14px auto;}
-  .kpiGrid{grid-template-columns:1fr;gap:10px;}
-  .kpiCard{padding:14px;}
-  .kpiTitle{font-size:11px;}
-  .kpiValue{font-size:26px;}
-
-  /* ✅ 필터: 라벨/컨트롤 간격 축소 + 기간/지역/매장 정렬 통일 */
-  .filterBox{padding:8px;}
-  .filterRows{gap:8px;}
-
-  .row,
-  .rangeRow{
-    display:grid;
-    grid-template-columns:56px 1fr;  /* ✅ 64/72 → 56 통일 (더 왼쪽) */
-    gap:6px;                          /* ✅ 라벨-컨트롤 거리 축소 */
-    align-items:center;
-  }
-
-  .rowLabel{
-    font-size:12px;
-    white-space:nowrap;
-    line-height:1;
-  }
-
-  .control{
-    height:32px;
-    line-height:32px;
-    font-size:12px;
-    padding:0 8px;     /* ✅ 컨트롤 안쪽 여백 축소 */
-    border-radius:9px;
-  }
-  input[type="date"].control{height:32px;line-height:32px;}
-  select.control{height:32px;line-height:32px;}
-
-  /* ✅ 기간 2개 입력이 한 줄에서 균등하게 */
-  .rangeControls{
-    display:flex;
-    gap:6px;
-  }
-  .rangeControls .control{
-    flex:1;
-    min-width:0;
-  }
-
-  .btnSecondary{height:30px;font-size:10px;border-radius:8px;}
-
-  .hideCategoryOnMobile{display:none !important;}
-
-  .panel{padding:12px;}
-  .panelTitle{font-size:13px;margin-bottom:10px;}
-
-  table{table-layout:fixed;}
-  th,td{
-    font-size:10px;
-    padding:6px 6px;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-  }
-
-  /* 모바일에서 남은일수(7번째) 숨김 */
-  table th:nth-child(7),
-  table td:nth-child(7){display:none;}
-
-  /* 모바일: 매장코드(2번째) 숨김 */
-  table th:nth-child(2),
-  table td:nth-child(2){display:none;}
-
-  /* 모바일: 카테고리(4번째) 숨김 */
-  table th:nth-child(4),
-  table td:nth-child(4){display:none;}
-
-  /* ✅ 모바일 폭 재배분 (입력일/매장명/자재명/유통기한) */
-  th:nth-child(1),td:nth-child(1){width:26%;}
-  th:nth-child(3),td:nth-child(3){width:24%;}
-  th:nth-child(5),td:nth-child(5){width:24%;}
-  th:nth-child(6),td:nth-child(6){width:26%;}
-}
-
-  /* ---------------------------------------------------------
-   *  3-F) 데이터 가져오기 (기간 조회: 프론트에서 날짜별 호출 후 합치기)
-   *   - ✅ 7일 초과면 알림만 띄우고 조회 중단
-   * --------------------------------------------------------- */
-  const fetchData = useCallback(
-    async (next) => {
-      const { dateFrom: df, dateTo: dt, region: r, category: c, storeCode: sc } = next;
-
-      // ✅ 7일 제한: 알림만 띄우고 fetch 자체를 중단
-      const dayCount = diffDaysInclusive(df, dt);
-      if (dayCount !== null && dayCount > MAX_RANGE_DAYS) {
-        alert("조회기간 최대는 7일입니다.");
-        startTransition(() => {
-          setSummary([]);
-          setItems([]);
-        });
-        return;
+      .logo{
+        font-size:14px;
+        max-width:52vw;
+        white-space:normal;
+        line-height:1.05;
+        letter-spacing:0;
+        overflow:hidden;
       }
 
-      const rangeKey = JSON.stringify({
-        df: df || "",
-        dt: dt || "",
+      .headerRight{
+        flex-direction:column;
+        align-items:flex-end;
+        gap:8px;
+        white-space:normal;
+        min-width:0;
+      }
+
+      .todayText{
+        font-size:10px;
+        line-height:1.2;
+        text-align:left;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        max-width:100%;
+      }
+
+      .headerActions{
+        flex-direction:column;
+        gap:6px;
+        width:76px;
+        align-items:stretch;
+      }
+      .headerBtn{
+        height:26px;
+        padding:0 8px;
+        font-size:10px;
+        border-radius:9px;
+        min-width:0;
+      }
+
+      .container{padding:0 12px;margin:14px auto;}
+      .kpiGrid{grid-template-columns:1fr;gap:10px;}
+      .kpiCard{padding:14px;}
+      .kpiTitle{font-size:11px;}
+      .kpiValue{font-size:26px;}
+
+      /* ✅ 모바일 필터: 라벨/컨트롤 더 붙이고 사이즈 축소 */
+      .filterBox{padding:10px;}
+      .filterRows{gap:8px;}
+      .row{grid-template-columns:52px 1fr;gap:6px;}
+      .rangeRow{grid-template-columns:52px 1fr;gap:6px;}
+      .rowLabel{font-size:12px;}
+      .control{height:34px;line-height:34px;font-size:12px;padding:0 8px;border-radius:9px;}
+      input[type="date"].control{height:34px;line-height:34px;}
+      select.control{height:34px;line-height:34px;}
+      .rangeControls{gap:4px;}
+      .btnSecondary{height:34px;font-size:11px;border-radius:9px;}
+
+      .hideCategoryOnMobile{display:none !important;}
+
+      .panel{padding:12px;}
+      .panelTitle{font-size:13px;margin-bottom:10px;}
+
+      table{table-layout:fixed;}
+      th,td{
+        font-size:10px;
+        padding:6px 6px;
+      }
+
+      /* 모바일에서 남은일수(7번째) 숨김 */
+      table th:nth-child(7),
+      table td:nth-child(7){ display:none; }
+
+      /* 모바일: 매장코드(2번째) 숨김 */
+      table th:nth-child(2),
+      table td:nth-child(2){ display:none; }
+
+      /* 모바일: 카테고리(4번째) 숨김 */
+      table th:nth-child(4),
+      table td:nth-child(4){ display:none; }
+
+      /* 모바일 폭 재배분 (입력일/매장명/자재명/유통기한) */
+      th:nth-child(1),td:nth-child(1){width:26%;}
+      th:nth-child(3),td:nth-child(3){width:26%;}
+      th:nth-child(5),td:nth-child(5){width:24%;}
+      th:nth-child(6),td:nth-child(6){width:24%;}
+
+      .storeNameCell{max-width:none;width:auto;}
+    }
+  `;
+
+  /* ---------------------------------------------------------
+   *  3-F) 데이터 가져오기
+   *    - 백엔드에 기간 파라미터 전달 X
+   *    - input_date로 날짜별 호출 후 합산
+   *    - 7일 초과는 "알림만" (조회는 계속 진행)
+   * --------------------------------------------------------- */
+  const fetchRangeData = useCallback(
+    async (next) => {
+      const { startDate: s0, endDate: e0, region: r, category: c, storeCode: sc } = next;
+
+      const s = toYMD(s0);
+      const e = toYMD(e0);
+      if (!s || !e) return;
+
+      const start = s <= e ? s : e;
+      const end = s <= e ? e : s;
+
+      const span = diffDaysInclusive(start, end);
+
+      // ✅ 7일 초과: 알람만, 조회는 계속
+      const alertKey = `${start}|${end}`;
+      if (span > 7 && alertedRef.current.key !== alertKey) {
+        alertedRef.current.key = alertKey;
+        alert("조회기간 최대는 7일입니다.");
+      }
+      if (span <= 7 && alertedRef.current.key === alertKey) {
+        alertedRef.current.key = "";
+      }
+
+      const cacheKey = JSON.stringify({
+        start,
+        end,
         r: r || "",
-        c: c || "",
         sc: sc || "",
+        c: c || "",
       });
 
-      const cached = cacheRef.current.get(rangeKey);
+      const cached = cacheRef.current.get(cacheKey);
       if (cached) {
         startTransition(() => {
+          setRawSummary(cached.rawSummary);
+          setRawItems(cached.rawItems);
           setSummary(cached.summary);
           setItems(cached.items);
         });
@@ -522,38 +490,23 @@ function DashboardPageInner() {
       try {
         setLoading(true);
 
-        const dates = buildDateListInclusive(df, dt);
-        if (!dates.length) {
-          startTransition(() => {
-            setSummary([]);
-            setItems([]);
-          });
-          return;
-        }
+        const days = [];
+        for (let i = 0; i < span; i++) days.push(addDays(start, i));
 
-        async function promisePool(list, limit, worker) {
-          const results = new Array(list.length);
-          let i = 0;
-          const runners = Array.from({ length: Math.min(limit, list.length) }, async () => {
-            while (i < list.length) {
-              const idx = i++;
-              results[idx] = await worker(list[idx], idx);
-            }
-          });
-          await Promise.all(runners);
-          return results;
-        }
+        const fetchOneDay = async (day) => {
+          const scopeKey = sc ? `sc:${sc}` : r ? `r:${r}` : "all";
+          const dayKey = `${day}|${scopeKey}|${c || ""}`;
 
-        const CONCURRENCY = 4;
+          const cachedDay = dayCacheRef.current.get(dayKey);
+          if (cachedDay) return cachedDay;
 
-        const daily = await promisePool(dates, CONCURRENCY, async (d) => {
           const qs = new URLSearchParams();
-          qs.set("input_date", d);
+          qs.set("input_date", day);
           if (sc) qs.set("store_code", sc);
           else if (r) qs.set("region", r);
 
           const qsItems = new URLSearchParams();
-          qsItems.set("input_date", d);
+          qsItems.set("input_date", day);
           if (sc) qsItems.set("store_code", sc);
           else if (r) qsItems.set("region", r);
           if (c) qsItems.set("category", c);
@@ -572,76 +525,61 @@ function DashboardPageInner() {
           const sJson = await sRes.json().catch(() => ({}));
           const iJson = await iRes.json().catch(() => ({}));
 
-          const sRows = Array.isArray(sJson.rows) ? sJson.rows : [];
-          const iRows = Array.isArray(iJson.rows) ? iJson.rows : [];
+          const daySummary = Array.isArray(sJson.rows) ? sJson.rows : [];
+          const dayItems0 = Array.isArray(iJson.rows) ? iJson.rows : [];
 
-          const iRowsWithDate = iRows.map((row) => ({
-            ...row,
-            input_date: d, // ✅ 입력일을 항상 포함
+          // ✅ 입력일 주입 + 포맷 강제
+          const dayItems = dayItems0.map((x) => ({
+            ...x,
+            input_date: toYMD(x.input_date || day),
           }));
 
-          return { date: d, summary: sRows, items: iRowsWithDate };
-        });
+          const out = { daySummary, dayItems };
+          dayCacheRef.current.set(dayKey, out);
+          return out;
+        };
 
-        // ✅ summary 합치기: store_code 기준, 기간 중 1번이라도 입력이면 entered=1
-        const sumMap = new Map();
-        for (const day of daily) {
-          for (const row of day.summary) {
-            const key = String(row.store_code || "").trim();
-            if (!key) continue;
+        const results = await Promise.all(days.map((d) => fetchOneDay(d)));
 
-            const prev = sumMap.get(key);
-            const curEntered = Number(row.is_entered) === 1;
-
-            if (!prev) {
-              sumMap.set(key, {
-                ...row,
-                is_entered: curEntered ? 1 : 0,
-              });
-            } else {
-              sumMap.set(key, {
+        // summary 합산(매장 단위, is_entered OR)
+        const summaryMap = new Map();
+        for (const res of results) {
+          for (const r0 of res.daySummary) {
+            const k = String(r0.store_code || "").trim();
+            if (!k) continue;
+            const prev = summaryMap.get(k);
+            if (!prev) summaryMap.set(k, { ...r0 });
+            else {
+              summaryMap.set(k, {
                 ...prev,
-                store_name: prev.store_name || row.store_name,
-                region_name: prev.region_name || row.region_name,
-                is_entered: Number(prev.is_entered) === 1 || curEntered ? 1 : 0,
+                is_entered:
+                  Number(prev.is_entered) === 1 || Number(r0.is_entered) === 1 ? 1 : 0,
               });
             }
           }
         }
+        const nextRawSummary = Array.from(summaryMap.values());
+        const nextRawItems = results.flatMap((res) => res.dayItems);
 
-        const nextSummary = Array.from(sumMap.values()).sort((a, b) =>
-          String(a.store_code || "").localeCompare(String(b.store_code || ""))
-        );
-
-        // ✅ items 합치기 + 정렬
-        const nextItems = daily
-          .flatMap((d) => d.items)
-          .sort((a, b) => {
-            const ad = String(a.input_date || "");
-            const bd = String(b.input_date || "");
-            if (ad !== bd) return ad.localeCompare(bd);
-
-            const asc = String(a.store_code || "");
-            const bsc = String(b.store_code || "");
-            if (asc !== bsc) return asc.localeCompare(bsc);
-
-            const ac = String(a.category || "");
-            const bc = String(b.category || "");
-            if (ac !== bc) return ac.localeCompare(bc, "ko");
-
-            return String(a.item_name || "").localeCompare(String(b.item_name || ""), "ko");
-          });
-
-        cacheRef.current.set(rangeKey, { summary: nextSummary, items: nextItems });
+        cacheRef.current.set(cacheKey, {
+          rawSummary: nextRawSummary,
+          rawItems: nextRawItems,
+          summary: nextRawSummary,
+          items: nextRawItems,
+        });
 
         startTransition(() => {
-          setSummary(nextSummary);
-          setItems(nextItems);
+          setRawSummary(nextRawSummary);
+          setRawItems(nextRawItems);
+          setSummary(nextRawSummary);
+          setItems(nextRawItems);
         });
       } catch (e) {
         if (e?.name === "AbortError") return;
         console.error("Dashboard fetch error:", e);
         startTransition(() => {
+          setRawSummary([]);
+          setRawItems([]);
           setSummary([]);
           setItems([]);
         });
@@ -656,19 +594,19 @@ function DashboardPageInner() {
   );
 
   useEffect(() => {
-    fetchData({ dateFrom, dateTo, region, category, storeCode });
-  }, [dateFrom, dateTo, region, category, storeCode, fetchData]);
+    fetchRangeData({ startDate, endDate, region, category, storeCode });
+  }, [startDate, endDate, region, category, storeCode, fetchRangeData]);
 
   /* ---------------------------------------------------------
-   *  3-G) 필터 옵션
+   *  3-G) 옵션: 지역/매장/카테고리
    * --------------------------------------------------------- */
   const regionOptions = useMemo(() => {
-    const set = new Set(summary.map((r) => r.region_name).filter(Boolean));
+    const set = new Set(rawSummary.map((r) => r.region_name).filter(Boolean));
     return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "ko"));
-  }, [summary]);
+  }, [rawSummary]);
 
   const storeOptions = useMemo(() => {
-    const rows = region ? summary.filter((r) => r.region_name === region) : summary;
+    const rows = region ? rawSummary.filter((r) => r.region_name === region) : rawSummary;
     const map = new Map();
     for (const r of rows) {
       if (r.store_code) {
@@ -678,28 +616,68 @@ function DashboardPageInner() {
     return Array.from(map.values()).sort((a, b) =>
       String(a.store_code).localeCompare(String(b.store_code))
     );
-  }, [summary, region]);
+  }, [rawSummary, region]);
 
   const categoryOptions = useMemo(() => {
-    const set = new Set(items.map((r) => r.category).filter(Boolean));
+    const set = new Set(rawItems.map((r) => r.category).filter(Boolean));
     return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "ko"));
-  }, [items]);
+  }, [rawItems]);
 
   /* ---------------------------------------------------------
-   *  3-H) KPI
+   *  3-H) 화면 표시용 items 최종 필터 (프론트에서만)
+   * --------------------------------------------------------- */
+  const viewItems = useMemo(() => {
+    let rows = Array.isArray(items) ? items : [];
+
+    if (region && !storeCode) {
+      rows = rows.filter((r) => String(r.region_name || "") === String(region));
+    }
+    if (storeCode) {
+      rows = rows.filter((r) => String(r.store_code || "") === String(storeCode));
+    }
+    if (category) {
+      rows = rows.filter((r) => String(r.category || "") === String(category));
+    }
+
+    // ✅ 입력일/유통기한 포맷 고정
+    rows = rows.map((r) => ({
+      ...r,
+      input_date: toYMD(r.input_date),
+      expiry_date: toYMD(r.expiry_date),
+    }));
+
+    // 정렬: 입력일 desc → 매장명 → 자재명
+    rows.sort((a, b) => {
+      const ad = String(a.input_date || "");
+      const bd = String(b.input_date || "");
+      if (ad !== bd) return bd.localeCompare(ad);
+      const asn = String(a.store_name || "");
+      const bsn = String(b.store_name || "");
+      if (asn !== bsn) return asn.localeCompare(bsn, "ko");
+      return String(a.item_name || "").localeCompare(String(b.item_name || ""), "ko");
+    });
+
+    return rows;
+  }, [items, region, storeCode, category]);
+
+  /* ---------------------------------------------------------
+   *  3-I) KPI
    * --------------------------------------------------------- */
   const kpiData = useMemo(() => {
     const storeSet = new Set(
       summary.map((r) => String(r.store_code || "").trim()).filter(Boolean)
     );
     const totalStores = storeSet.size;
-
     const enteredStores = summary.filter((r) => Number(r.is_entered) === 1).length;
     const notEnteredStores = Math.max(0, totalStores - enteredStores);
-    const inputRows = items.length;
 
-    return { enteredStores, notEnteredStores, inputRows, totalStores };
-  }, [summary, items]);
+    return {
+      enteredStores,
+      notEnteredStores,
+      totalStores,
+      inputRows: viewItems.length,
+    };
+  }, [summary, viewItems]);
 
   const KPI_DEFS = useMemo(
     () => [
@@ -712,33 +690,33 @@ function DashboardPageInner() {
   );
 
   /* ---------------------------------------------------------
-   *  3-I) 필터 초기화
+   *  3-J) 필터 초기화
    * --------------------------------------------------------- */
   const onResetFilters = () => {
     const t = ymdToday();
-    setDateFrom(t);
-    setDateTo(t);
+    setStartDate(t);
+    setEndDate(t);
     setRegion("");
     setStoreCode("");
     setCategory("");
   };
 
   /* ---------------------------------------------------------
-   *  3-J) 저장하기(엑셀 다운로드)
+   *  3-K) 저장하기(엑셀 다운로드)
    * --------------------------------------------------------- */
   const onDownloadXlsx = useCallback(async () => {
-    if (!items || items.length === 0) return;
+    if (!viewItems || viewItems.length === 0) return;
 
     const XLSX = await import("xlsx");
 
-    const rows = items.map((r) => ({
-      input_date: String(r.input_date || ""), // ✅ 2026-01-25 형태 유지
+    const rows = viewItems.map((r) => ({
+      input_date: toYMD(r.input_date),
       region_name: r.region_name || region || "",
       store_code: r.store_code || "",
       store_name: r.store_name || "",
       category: r.category || "",
       item_name: r.item_name || "",
-      expiry_date: formatExpiryYMD(r.expiry_date),
+      expiry_date: toYMD(r.expiry_date),
       remaining_days: Number.isFinite(Number(r.remaining_days_by_filter))
         ? Number(r.remaining_days_by_filter)
         : "",
@@ -749,10 +727,10 @@ function DashboardPageInner() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Dashboard");
     XLSX.writeFile(wb, "dashboard.xlsx");
-  }, [items, region]);
+  }, [viewItems, region]);
 
   /* ---------------------------------------------------------
-   *  3-K) 입력하기 이동 (항상 store_code/store_name 유지)
+   *  3-L) 입력하기 이동
    * --------------------------------------------------------- */
   const goInputPage = useCallback(() => {
     const sc = (headerStoreCode || "").trim();
@@ -769,7 +747,7 @@ function DashboardPageInner() {
   if (loading) return <div style={{ padding: 40 }}>로딩중...</div>;
 
   /* ---------------------------------------------------------
-   *  4) 헤더 표기 문자열
+   *  4) 헤더 표기
    * --------------------------------------------------------- */
   const headerDate = ymdToday();
   const safeCode = headerStoreCode || "-";
@@ -779,13 +757,15 @@ function DashboardPageInner() {
     <div className="page">
       <style dangerouslySetInnerHTML={{ __html: styles }} />
 
-      {/* Header */}
       <div className="header">
         <div className="headerInner">
-          <div className="logo">KFC | OPERATIONS | 유통기한 | DASHBOARD</div>
+          <div className="logo">
+            <span className="logoTop">KFC OPERATIONS</span>
+            <span className="logoBottom">유통기한 DASHBOARD</span>
+          </div>
 
           <div className="headerRight">
-            <div className="todayText">
+            <div className="todayText" title={`${headerDate} | ${safeCode} | ${safeName}`}>
               {headerDate} | {safeCode} | {safeName}
               {isPending ? " | 업데이트중..." : ""}
             </div>
@@ -794,9 +774,8 @@ function DashboardPageInner() {
               <button
                 className="headerBtn btnYellow"
                 type="button"
-                disabled={!items || items.length === 0}
+                disabled={!viewItems || viewItems.length === 0}
                 onClick={onDownloadXlsx}
-                title={items?.length ? "dashboard.xlsx 다운로드" : "다운로드할 데이터가 없습니다"}
               >
                 저장하기
               </button>
@@ -809,10 +788,8 @@ function DashboardPageInner() {
         </div>
       </div>
 
-      {/* Body */}
       <div className="container">
         <div className="grid">
-          {/* Left: KPI + Filters */}
           <div className="leftCol">
             <div className="kpiGrid">
               {KPI_DEFS.map((k) => (
@@ -824,21 +801,20 @@ function DashboardPageInner() {
               <div className="filterTitle">필터</div>
 
               <div className="filterRows">
-                {/* ✅ 기간 입력 2개 한 행 (구분문자 없음) */}
                 <div className="rangeRow">
                   <div className="rowLabel">기간</div>
                   <div className="rangeControls">
                     <input
                       className="control"
                       type="date"
-                      value={dateFrom}
-                      onChange={(e) => setDateFrom(e.target.value)}
+                      value={toYMD(startDate)}
+                      onChange={(e) => setStartDate(toYMD(e.target.value))}
                     />
                     <input
                       className="control"
                       type="date"
-                      value={dateTo}
-                      onChange={(e) => setDateTo(e.target.value)}
+                      value={toYMD(endDate)}
+                      onChange={(e) => setEndDate(toYMD(e.target.value))}
                     />
                   </div>
                 </div>
@@ -903,7 +879,6 @@ function DashboardPageInner() {
             </div>
           </div>
 
-          {/* Right: Table */}
           <div className="panel">
             <div className="panelTitle">📋 자재별 유통기한 현황</div>
 
@@ -921,19 +896,21 @@ function DashboardPageInner() {
               </thead>
 
               <tbody>
-                {items.map((r, idx) => {
+                {viewItems.map((r, idx) => {
                   const remain = Number.isFinite(Number(r.remaining_days_by_filter))
                     ? Number(r.remaining_days_by_filter)
                     : null;
 
                   return (
                     <tr key={idx}>
-                      <td>{String(r.input_date || "-")}</td>
+                      <td>{toYMD(r.input_date)}</td>
                       <td>{r.store_code || "-"}</td>
-                      <td>{r.store_name || "-"}</td>
+                      <td className="storeNameCell" title={r.store_name || ""}>
+                        {r.store_name || "-"}
+                      </td>
                       <td>{r.category || "-"}</td>
-                      <td>{r.item_name || "-"}</td>
-                      <td className="dangerText">{formatExpiryYMD(r.expiry_date)}</td>
+                      <td title={r.item_name || ""}>{r.item_name || "-"}</td>
+                      <td className="dangerText">{toYMD(r.expiry_date)}</td>
                       <td className={remain !== null && remain < 0 ? "dangerText" : "muted"}>
                         {remain === null ? "-" : remain}
                       </td>
@@ -943,7 +920,7 @@ function DashboardPageInner() {
               </tbody>
             </table>
 
-            {items.length === 0 && (
+            {viewItems.length === 0 && (
               <div style={{ padding: 30, textAlign: "center", color: "#999" }}>
                 표시할 데이터가 없습니다.
               </div>
