@@ -388,8 +388,8 @@ function DashboardPageInner() {
       .kpiTitle{font-size:11px;}
       .kpiValue{font-size:26px;}
 
-      .filterBox{padding:12px;}
-      .row{grid-template-columns:72px 1fr;}
+      .filterBox{padding:10px;}
+      .row{grid-template-columns:64px 1fr;}
       .rangeRow{grid-template-columns:72px 1fr;}
       .control{height:34px;line-height:34px;font-size:12px;padding:0 10px;border-radius:9px;}
       input[type="date"].control{height:34px;line-height:34px;}
@@ -424,9 +424,9 @@ function DashboardPageInner() {
 
       /* ✅ 모바일 폭 재배분 (입력일/매장명/자재명/유통기한) */
       th:nth-child(1),td:nth-child(1){width:26%;}
-      th:nth-child(3),td:nth-child(3){width:34%;}
+      th:nth-child(3),td:nth-child(3){width:24%;}
       th:nth-child(5),td:nth-child(5){width:24%;}
-      th:nth-child(6),td:nth-child(6){width:16%;}
+      th:nth-child(6),td:nth-child(6){width:26%;}
     }
   `;
 
