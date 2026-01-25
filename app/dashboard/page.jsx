@@ -16,8 +16,8 @@ export const dynamic = "force-dynamic";
 /* =========================================================
  *  0) 고정 설정
  * ========================================================= */
-const API_BASE =
-  "https://inventory-api-231876330057.asia-northeast3.run.app";
+const API_BASE = "https://inventory-api-231876330057.asia-northeast3.run.app";
+const MAX_RANGE_DAYS = 7; // ✅ 조회기간 최대 7일
 
 /* =========================================================
  *  1) 날짜/표시 유틸 (KST 고정)
@@ -26,6 +26,51 @@ function ymdToday() {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return kst.toISOString().slice(0, 10);
+}
+
+function parseYMD(ymd) {
+  const s = String(ymd || "").slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  const dt = new Date(y, mo - 1, d);
+  if (isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function diffDaysInclusive(fromYmd, toYmd) {
+  const s0 = parseYMD(fromYmd);
+  const e0 = parseYMD(toYmd);
+  if (!s0 || !e0) return null;
+
+  const s = s0.getTime() <= e0.getTime() ? s0 : e0;
+  const e = s0.getTime() <= e0.getTime() ? e0 : s0;
+
+  return Math.floor((e.getTime() - s.getTime()) / 86400000) + 1;
+}
+
+function buildDateListInclusive(fromYmd, toYmd) {
+  const s0 = parseYMD(fromYmd);
+  const e0 = parseYMD(toYmd);
+  if (!s0 || !e0) return [];
+
+  const s = s0.getTime() <= e0.getTime() ? s0 : e0;
+  const e = s0.getTime() <= e0.getTime() ? e0 : s0;
+
+  const out = [];
+  let cur = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+  const end = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+
+  while (cur.getTime() <= end.getTime()) {
+    const y = cur.getFullYear();
+    const mm = String(cur.getMonth() + 1).padStart(2, "0");
+    const dd = String(cur.getDate()).padStart(2, "0");
+    out.push(`${y}-${mm}-${dd}`);
+    cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+  }
+  return out;
 }
 
 function formatExpiryYMD(v) {
@@ -66,7 +111,6 @@ function DashboardPageInner() {
 
   /* ---------------------------------------------------------
    *  3-A) URL/로컬스토리지에서 헤더 매장 정보 읽기 (표시용)
-   *   - ⚠️ 조회 조건에는 절대 사용하지 않음
    * --------------------------------------------------------- */
   const urlStoreCode = (searchParams.get("store_code") || "").trim();
   const urlStoreName = (searchParams.get("store_name") || "").trim();
@@ -93,9 +137,10 @@ function DashboardPageInner() {
   }, [urlStoreCode, urlStoreName]);
 
   /* ---------------------------------------------------------
-   *  3-B) 화면 필터 상태
+   *  3-B) 화면 필터 상태 (기간 조회)
    * --------------------------------------------------------- */
-  const [inputDate, setInputDate] = useState(ymdToday());
+  const [dateFrom, setDateFrom] = useState(ymdToday());
+  const [dateTo, setDateTo] = useState(ymdToday());
   const [region, setRegion] = useState("");
   const [storeCode, setStoreCode] = useState("");
   const [category, setCategory] = useState("");
@@ -115,14 +160,11 @@ function DashboardPageInner() {
   const [isPending, startTransition] = useTransition();
 
   /* ---------------------------------------------------------
-   *  3-E) 화면 스타일(CSS 문자열)
-   *  ✅ 모바일(≤560px)에서만:
-   *    - 헤더 타이틀 2줄
-   *    - 날짜/매장코드/매장명 3줄
-   *    - 저장/입력 버튼 세로(작게)
+   *  3-E) CSS
+   *   - 기간 입력 2개를 한 행 + 간격 축소
+   *   - 매장명 컬럼 폭 확장(최소 12글자)
    * --------------------------------------------------------- */
   const styles = `
-    /* ✅ 전역: Pretendard Medium */
     *{
       font-family:"Pretendard", system-ui, -apple-system, BlinkMacSystemFont;
       font-weight:500;
@@ -131,17 +173,13 @@ function DashboardPageInner() {
 
     .page{min-height:100vh;background:linear-gradient(135deg,#FFF1E2 0%,#F5D4B7 100%);}
 
-    /* Header */
     .header{
       background:linear-gradient(90deg,#A3080B 0%,#DC001B 100%);
       padding:14px 20px;
       color:#fff;
-      font-weight:700; /* ✅ 헤더: Pretendard Black */
-    }
-    /* ✅ 헤더 내부 전부 Black 강제 */
-    .header, .header *{
       font-weight:700;
     }
+    .header, .header *{ font-weight:700; }
 
     .headerInner{
       display:flex;
@@ -150,18 +188,14 @@ function DashboardPageInner() {
       gap:12px;
     }
 
-    /* ✅ PC 기본: 2줄 타이틀 + 크게 */
     .logo{
-      font-size:28px;
+      font-size:22px;
       font-weight:900;
-      letter-spacing:.6px;
-      white-space:normal;     /* ✅ 2줄 허용 */
-      line-height:1.05;
+      letter-spacing:.4px;
+      white-space:nowrap;
+      line-height:1.1;
     }
-    .logoLine{display:block;}  /* ✅ 항상 줄 단위 */
-    .logoBreak{display:block;} /* ✅ 필요시만 쓰고 싶으면 유지 */
 
-    /* PC 기본: 오른쪽 가로 */
     .headerRight{
       display:flex;
       align-items:center;
@@ -169,7 +203,6 @@ function DashboardPageInner() {
       white-space:nowrap;
     }
 
-    /* PC 기본: 날짜/코드/매장명은 한 줄 */
     .todayText{
       font-size:14px;
       font-weight:900;
@@ -179,9 +212,7 @@ function DashboardPageInner() {
       text-align:right;
       line-height:1.2;
     }
-    .headerMetaLine{display:inline;}
 
-    /* PC 기본: 버튼 가로 */
     .headerActions{
       display:flex;
       flex-direction:row;
@@ -211,12 +242,10 @@ function DashboardPageInner() {
     .btnYellow:hover{filter:brightness(0.96);}
     .headerBtn:disabled{opacity:.55;cursor:not-allowed;}
 
-    /* Layout */
     .container{max-width:1400px;margin:22px auto;padding:0 16px;}
     .grid{display:grid;grid-template-columns:420px 1fr;gap:18px;align-items:start;}
     .leftCol{display:flex;flex-direction:column;gap:12px;}
 
-    /* KPI */
     .kpiGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
     .kpiCard{
       background:#fff;border-radius:14px;padding:18px;
@@ -226,7 +255,6 @@ function DashboardPageInner() {
     .kpiTitle{font-size:12px;font-weight:900;color:#666;}
     .kpiValue{font-size:32px;font-weight:900;color:#C62828;margin-top:6px;line-height:1;}
 
-    /* Panel */
     .panel{
       background:#fff;border-radius:14px;padding:18px;
       box-shadow:0 4px 20px rgba(0,0,0,.08);
@@ -235,16 +263,29 @@ function DashboardPageInner() {
     }
     .panelTitle{font-size:16px;font-weight:900;margin-bottom:12px;}
 
-    /* Filters */
     .filterBox{background:#fff;border-radius:14px;padding:14px;box-shadow:0 4px 16px rgba(0,0,0,.08);}
     .filterTitle{font-weight:900;color:#A3080B;margin-bottom:10px;font-size:12px;}
     .filterRows{display:flex;flex-direction:column;gap:10px;}
     .row{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;}
     .rowLabel{font-size:13px;font-weight:900;color:#444;white-space:nowrap;line-height:1;}
+
+    /* ✅ 기간 2개 한 행 + 간격 축소 + 구분문자 제거 */
+    .rangeRow{
+      display:grid;
+      grid-template-columns:64px 1fr;
+      gap:10px;
+      align-items:center;
+    }
+    .rangeControls{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:6px; /* ✅ 간격 축소 */
+      align-items:center;
+    }
+
     .control{
       width:100%;
       height:40px;
-      box-sizing:border-box;
       padding:0 12px;
       border:1px solid #E3E3E3;
       border-radius:10px;
@@ -266,7 +307,6 @@ function DashboardPageInner() {
       font-size:12px;
     }
 
-    /* Table */
     table{width:100%;border-collapse:collapse;}
     th,td{
       padding:10px 8px;
@@ -283,32 +323,34 @@ function DashboardPageInner() {
     .dangerText{color:#C62828;font-weight:900;}
     .muted{color:#777;font-weight:900;}
 
-    /* Tablet */
+    /* ✅ 매장명(3번째) 폭 확대: 최소 12글자 */
+    table th:nth-child(3),
+    table td:nth-child(3){
+      min-width:12ch;
+      max-width:18ch;
+    }
+
     @media (max-width:980px){
       .grid{grid-template-columns:1fr;}
       .header{padding:12px 16px;}
-      .logo{font-size:22px;white-space:normal;} /* ✅ 22x 오타 수정 */
+      .logo{font-size:18px;white-space:nowrap;}
       .container{margin:16px auto;}
       .panel{max-height:none;}
     }
 
-    /* Mobile (≤560px) */
     @media (max-width:560px){
       .header{padding:10px 12px;}
       .headerInner{gap:10px;align-items:flex-start;}
 
-      /* ✅ 헤더 타이틀 2줄 */
       .logo{
-        font-size:21px;
-        white-space:normal;
+        font-size:14px;
         max-width:52vw;
-        line-height:1.15;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
         letter-spacing:0;
       }
-      .logoLine{display:block;}
-      .logoBreak{display:block;}
 
-      /* ✅ 오른쪽 수직 */
       .headerRight{
         flex-direction:column;
         align-items:flex-end;
@@ -316,23 +358,16 @@ function DashboardPageInner() {
         white-space:normal;
       }
 
-    /* ✅ 날짜 | 매장코드 | 매장명 → 왼쪽 하단 / 한 줄 고정 */
-    .todayText{
-      grid-column:1 / 2;
-      grid-row:2 / 3;
+      .todayText{
+        font-size:10px;
+        line-height:1.2;
+        text-align:left;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        max-width:100%;
+      }
 
-      font-size:10px;
-      line-height:1.2;
-      text-align:left;
-
-      white-space:nowrap;        /* ✅ 무조건 한 줄 */
-      overflow:hidden;           /* ✅ 넘치면 숨김 */
-      text-overflow:ellipsis;    /* ✅ 말줄임 처리 */
-      max-width:100%;
-    }
-
-
-      /* ✅ 저장/입력 버튼: 세로 + 더 작게 */
       .headerActions{
         flex-direction:column;
         gap:6px;
@@ -355,14 +390,12 @@ function DashboardPageInner() {
 
       .filterBox{padding:12px;}
       .row{grid-template-columns:72px 1fr;}
-      .rowLabel{font-size:12px;}
+      .rangeRow{grid-template-columns:72px 1fr;}
       .control{height:34px;line-height:34px;font-size:12px;padding:0 10px;border-radius:9px;}
       input[type="date"].control{height:34px;line-height:34px;}
       select.control{height:34px;line-height:34px;}
-
       .btnSecondary{height:34px;font-size:11px;border-radius:9px;}
 
-      /* ✅ 모바일에서 카테고리 필터 숨김 */
       .hideCategoryOnMobile{display:none !important;}
 
       .panel{padding:12px;}
@@ -377,45 +410,54 @@ function DashboardPageInner() {
         text-overflow:ellipsis;
       }
 
-      /* ✅ 모바일에서 남은일수(6번째) 숨김 */
-      table th:nth-child(6),
-      table td:nth-child(6){
-        display:none;
-      }
+      /* 모바일에서 남은일수(7번째) 숨김 */
+      table th:nth-child(7),
+      table td:nth-child(7){ display:none; }
 
-      /* ✅ 모바일 전용: 매장코드(1번째) 숨김 */
-      table th:nth-child(1),
-      table td:nth-child(1){
-        display:none;
-      }
+      /* 모바일: 매장코드(2번째) 숨김 */
+      table th:nth-child(2),
+      table td:nth-child(2){ display:none; }
 
-      /* ✅ 모바일 전용: 카테고리(3번째) 숨김 */
-      table th:nth-child(3),
-      table td:nth-child(3){
-        display:none;
-      }
+      /* 모바일: 카테고리(4번째) 숨김 */
+      table th:nth-child(4),
+      table td:nth-child(4){ display:none; }
 
-      th:nth-child(2),td:nth-child(2){width:36%;}
-      th:nth-child(4),td:nth-child(4){width:38%;}
-      th:nth-child(5),td:nth-child(5){width:26%;}
+      /* ✅ 모바일 폭 재배분 (입력일/매장명/자재명/유통기한) */
+      th:nth-child(1),td:nth-child(1){width:26%;}
+      th:nth-child(3),td:nth-child(3){width:34%;}
+      th:nth-child(5),td:nth-child(5){width:24%;}
+      th:nth-child(6),td:nth-child(6){width:16%;}
     }
   `;
 
   /* ---------------------------------------------------------
-   *  3-F) 데이터 가져오기 (캐시 + 취소 + transition)
+   *  3-F) 데이터 가져오기 (기간 조회: 프론트에서 날짜별 호출 후 합치기)
+   *   - ✅ 7일 초과면 알림만 띄우고 조회 중단
    * --------------------------------------------------------- */
   const fetchData = useCallback(
     async (next) => {
-      const { inputDate: d, region: r, category: c, storeCode: sc } = next;
+      const { dateFrom: df, dateTo: dt, region: r, category: c, storeCode: sc } = next;
 
-      const cacheKey = JSON.stringify({
-        d: d || "",
+      // ✅ 7일 제한: 알림만 띄우고 fetch 자체를 중단
+      const dayCount = diffDaysInclusive(df, dt);
+      if (dayCount !== null && dayCount > MAX_RANGE_DAYS) {
+        alert("조회기간 최대는 7일입니다.");
+        startTransition(() => {
+          setSummary([]);
+          setItems([]);
+        });
+        return;
+      }
+
+      const rangeKey = JSON.stringify({
+        df: df || "",
+        dt: dt || "",
         r: r || "",
         c: c || "",
         sc: sc || "",
       });
 
-      const cached = cacheRef.current.get(cacheKey);
+      const cached = cacheRef.current.get(rangeKey);
       if (cached) {
         startTransition(() => {
           setSummary(cached.summary);
@@ -431,38 +473,117 @@ function DashboardPageInner() {
       try {
         setLoading(true);
 
-        const qs = new URLSearchParams();
-        if (d) qs.set("input_date", d);
-        if (sc) qs.set("store_code", sc);
-        else if (r) qs.set("region", r);
+        const dates = buildDateListInclusive(df, dt);
+        if (!dates.length) {
+          startTransition(() => {
+            setSummary([]);
+            setItems([]);
+          });
+          return;
+        }
 
-        const qsItems = new URLSearchParams();
-        if (d) qsItems.set("input_date", d);
-        if (sc) qsItems.set("store_code", sc);
-        else if (r) qsItems.set("region", r);
-        if (c) qsItems.set("category", c);
+        async function promisePool(list, limit, worker) {
+          const results = new Array(list.length);
+          let i = 0;
+          const runners = Array.from({ length: Math.min(limit, list.length) }, async () => {
+            while (i < list.length) {
+              const idx = i++;
+              results[idx] = await worker(list[idx], idx);
+            }
+          });
+          await Promise.all(runners);
+          return results;
+        }
 
-        const [sRes, iRes] = await Promise.all([
-          fetch(`${API_BASE}/api/dashboard/summary?${qs.toString()}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-          fetch(`${API_BASE}/api/dashboard/items?${qsItems.toString()}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-        ]);
+        const CONCURRENCY = 4;
 
-        const sJson = await sRes.json().catch(() => ({}));
-        const iJson = await iRes.json().catch(() => ({}));
+        const daily = await promisePool(dates, CONCURRENCY, async (d) => {
+          const qs = new URLSearchParams();
+          qs.set("input_date", d);
+          if (sc) qs.set("store_code", sc);
+          else if (r) qs.set("region", r);
 
-        const nextSummary = Array.isArray(sJson.rows) ? sJson.rows : [];
-        const nextItems = Array.isArray(iJson.rows) ? iJson.rows : [];
+          const qsItems = new URLSearchParams();
+          qsItems.set("input_date", d);
+          if (sc) qsItems.set("store_code", sc);
+          else if (r) qsItems.set("region", r);
+          if (c) qsItems.set("category", c);
 
-        cacheRef.current.set(cacheKey, {
-          summary: nextSummary,
-          items: nextItems,
+          const [sRes, iRes] = await Promise.all([
+            fetch(`${API_BASE}/api/dashboard/summary?${qs.toString()}`, {
+              cache: "no-store",
+              signal: controller.signal,
+            }),
+            fetch(`${API_BASE}/api/dashboard/items?${qsItems.toString()}`, {
+              cache: "no-store",
+              signal: controller.signal,
+            }),
+          ]);
+
+          const sJson = await sRes.json().catch(() => ({}));
+          const iJson = await iRes.json().catch(() => ({}));
+
+          const sRows = Array.isArray(sJson.rows) ? sJson.rows : [];
+          const iRows = Array.isArray(iJson.rows) ? iJson.rows : [];
+
+          const iRowsWithDate = iRows.map((row) => ({
+            ...row,
+            input_date: d, // ✅ 입력일을 항상 포함
+          }));
+
+          return { date: d, summary: sRows, items: iRowsWithDate };
         });
+
+        // ✅ summary 합치기: store_code 기준, 기간 중 1번이라도 입력이면 entered=1
+        const sumMap = new Map();
+        for (const day of daily) {
+          for (const row of day.summary) {
+            const key = String(row.store_code || "").trim();
+            if (!key) continue;
+
+            const prev = sumMap.get(key);
+            const curEntered = Number(row.is_entered) === 1;
+
+            if (!prev) {
+              sumMap.set(key, {
+                ...row,
+                is_entered: curEntered ? 1 : 0,
+              });
+            } else {
+              sumMap.set(key, {
+                ...prev,
+                store_name: prev.store_name || row.store_name,
+                region_name: prev.region_name || row.region_name,
+                is_entered: Number(prev.is_entered) === 1 || curEntered ? 1 : 0,
+              });
+            }
+          }
+        }
+
+        const nextSummary = Array.from(sumMap.values()).sort((a, b) =>
+          String(a.store_code || "").localeCompare(String(b.store_code || ""))
+        );
+
+        // ✅ items 합치기 + 정렬
+        const nextItems = daily
+          .flatMap((d) => d.items)
+          .sort((a, b) => {
+            const ad = String(a.input_date || "");
+            const bd = String(b.input_date || "");
+            if (ad !== bd) return ad.localeCompare(bd);
+
+            const asc = String(a.store_code || "");
+            const bsc = String(b.store_code || "");
+            if (asc !== bsc) return asc.localeCompare(bsc);
+
+            const ac = String(a.category || "");
+            const bc = String(b.category || "");
+            if (ac !== bc) return ac.localeCompare(bc, "ko");
+
+            return String(a.item_name || "").localeCompare(String(b.item_name || ""), "ko");
+          });
+
+        cacheRef.current.set(rangeKey, { summary: nextSummary, items: nextItems });
 
         startTransition(() => {
           setSummary(nextSummary);
@@ -486,17 +607,15 @@ function DashboardPageInner() {
   );
 
   useEffect(() => {
-    fetchData({ inputDate, region, category, storeCode });
-  }, [inputDate, region, category, storeCode, fetchData]);
+    fetchData({ dateFrom, dateTo, region, category, storeCode });
+  }, [dateFrom, dateTo, region, category, storeCode, fetchData]);
 
   /* ---------------------------------------------------------
    *  3-G) 필터 옵션
    * --------------------------------------------------------- */
   const regionOptions = useMemo(() => {
     const set = new Set(summary.map((r) => r.region_name).filter(Boolean));
-    return Array.from(set).sort((a, b) =>
-      String(a).localeCompare(String(b), "ko")
-    );
+    return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "ko"));
   }, [summary]);
 
   const storeOptions = useMemo(() => {
@@ -504,10 +623,7 @@ function DashboardPageInner() {
     const map = new Map();
     for (const r of rows) {
       if (r.store_code) {
-        map.set(r.store_code, {
-          store_code: r.store_code,
-          store_name: r.store_name,
-        });
+        map.set(r.store_code, { store_code: r.store_code, store_name: r.store_name });
       }
     }
     return Array.from(map.values()).sort((a, b) =>
@@ -517,9 +633,7 @@ function DashboardPageInner() {
 
   const categoryOptions = useMemo(() => {
     const set = new Set(items.map((r) => r.category).filter(Boolean));
-    return Array.from(set).sort((a, b) =>
-      String(a).localeCompare(String(b), "ko")
-    );
+    return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "ko"));
   }, [items]);
 
   /* ---------------------------------------------------------
@@ -552,7 +666,9 @@ function DashboardPageInner() {
    *  3-I) 필터 초기화
    * --------------------------------------------------------- */
   const onResetFilters = () => {
-    setInputDate(ymdToday());
+    const t = ymdToday();
+    setDateFrom(t);
+    setDateTo(t);
     setRegion("");
     setStoreCode("");
     setCategory("");
@@ -567,7 +683,7 @@ function DashboardPageInner() {
     const XLSX = await import("xlsx");
 
     const rows = items.map((r) => ({
-      input_date: inputDate || "",
+      input_date: String(r.input_date || ""), // ✅ 2026-01-25 형태 유지
       region_name: r.region_name || region || "",
       store_code: r.store_code || "",
       store_name: r.store_name || "",
@@ -584,7 +700,7 @@ function DashboardPageInner() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Dashboard");
     XLSX.writeFile(wb, "dashboard.xlsx");
-  }, [items, inputDate, region]);
+  }, [items, region]);
 
   /* ---------------------------------------------------------
    *  3-K) 입력하기 이동 (항상 store_code/store_name 유지)
@@ -603,11 +719,9 @@ function DashboardPageInner() {
 
   if (loading) return <div style={{ padding: 40 }}>로딩중...</div>;
 
-  /* =========================================================
+  /* ---------------------------------------------------------
    *  4) 헤더 표기 문자열
-   *   - PC: "YYYY-MM-DD / CODE / NAME" 한 줄
-   *   - Mobile: 3줄 (CSS에서 block 처리)
-   * ========================================================= */
+   * --------------------------------------------------------- */
   const headerDate = ymdToday();
   const safeCode = headerStoreCode || "-";
   const safeName = headerStoreName || "매장명 없음";
@@ -619,32 +733,21 @@ function DashboardPageInner() {
       {/* Header */}
       <div className="header">
         <div className="headerInner">
-          {/* ✅ 모바일에서 2줄 */}
-          <div className="logo">
-            <span className="logoLine">KFC OPERATIONS</span>
-            <span className="logoBreak" />
-            <span className="logoLine">유통기한 DASHBOARD</span>
-          </div>
+          <div className="logo">KFC OPERATIONS | 유통기한 DASHBOARD</div>
 
           <div className="headerRight">
-            {/* ✅ PC: 한 줄 / Mobile: 3줄 */}
             <div className="todayText">
-              <span className="headerMetaLine">{headerDate}</span>
-              <span className="headerMetaLine"> | {safeCode}</span>
-              <span className="headerMetaLine"> | {safeName}</span>
-              <span>{isPending ? " | 업데이트중..." : ""}</span>
+              {headerDate} | {safeCode} | {safeName}
+              {isPending ? " | 업데이트중..." : ""}
             </div>
 
-            {/* ✅ PC: 가로 / Mobile: 세로(작게) */}
             <div className="headerActions">
               <button
                 className="headerBtn btnYellow"
                 type="button"
                 disabled={!items || items.length === 0}
                 onClick={onDownloadXlsx}
-                title={
-                  items?.length ? "dashboard.xlsx 다운로드" : "다운로드할 데이터가 없습니다"
-                }
+                title={items?.length ? "dashboard.xlsx 다운로드" : "다운로드할 데이터가 없습니다"}
               >
                 저장하기
               </button>
@@ -672,14 +775,23 @@ function DashboardPageInner() {
               <div className="filterTitle">필터</div>
 
               <div className="filterRows">
-                <div className="row">
-                  <div className="rowLabel">날짜</div>
-                  <input
-                    className="control"
-                    type="date"
-                    value={inputDate}
-                    onChange={(e) => setInputDate(e.target.value)}
-                  />
+                {/* ✅ 기간 입력 2개 한 행 (구분문자 없음) */}
+                <div className="rangeRow">
+                  <div className="rowLabel">기간</div>
+                  <div className="rangeControls">
+                    <input
+                      className="control"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                    />
+                    <input
+                      className="control"
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 <div className="row">
@@ -749,6 +861,7 @@ function DashboardPageInner() {
             <table>
               <thead>
                 <tr>
+                  <th>입력일</th>
                   <th>매장코드</th>
                   <th>매장명</th>
                   <th>카테고리</th>
@@ -766,6 +879,7 @@ function DashboardPageInner() {
 
                   return (
                     <tr key={idx}>
+                      <td>{String(r.input_date || "-")}</td>
                       <td>{r.store_code || "-"}</td>
                       <td>{r.store_name || "-"}</td>
                       <td>{r.category || "-"}</td>
