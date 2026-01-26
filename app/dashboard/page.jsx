@@ -661,23 +661,48 @@ function DashboardPageInner() {
   }, [items, region, storeCode, category]);
 
   /* ---------------------------------------------------------
-   *  3-I) KPI
-   * --------------------------------------------------------- */
+  *  3-I) KPI  (유니크 품목 30개 이상 입력 매장 기준)
+  * --------------------------------------------------------- */
   const kpiData = useMemo(() => {
+    // 1) KPI 대상 매장 풀 (기존 summary 기준 유지)
     const storeSet = new Set(
       summary.map((r) => String(r.store_code || "").trim()).filter(Boolean)
     );
     const totalStores = storeSet.size;
-    const enteredStores = summary.filter((r) => Number(r.is_entered) === 1).length;
+
+    // 2) 조회기간 rawItems 기준 → 매장별 유니크 품목 집계
+    const uniqMapByStore = new Map(); // store_code -> Set(uniqueItemKey)
+
+    for (const r of rawItems || []) {
+      const sc = String(r.store_code || "").trim();
+      if (!sc) continue;
+
+      // ✅ 유니크 품목 키 (카테고리 + 자재명)
+      const key = `${String(r.category || "").trim()}__${String(
+        r.item_name || ""
+      ).trim()}`;
+      if (!key || key === "__") continue;
+
+      if (!uniqMapByStore.has(sc)) uniqMapByStore.set(sc, new Set());
+      uniqMapByStore.get(sc).add(key);
+    }
+
+    // 3) 유니크 품목 30개 이상 매장 카운트
+    let enteredStores = 0;
+    for (const sc of storeSet) {
+      const cnt = uniqMapByStore.get(sc)?.size || 0;
+      if (cnt >= 30) enteredStores += 1;
+    }
+
     const notEnteredStores = Math.max(0, totalStores - enteredStores);
 
     return {
       enteredStores,
       notEnteredStores,
       totalStores,
-      inputRows: viewItems.length,
+      inputRows: viewItems.length, // 기존 유지
     };
-  }, [summary, viewItems]);
+  }, [summary, rawItems, viewItems]);
 
   const KPI_DEFS = useMemo(
     () => [
